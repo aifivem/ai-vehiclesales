@@ -23,6 +23,10 @@ import { settings, world } from "./content";
 import { atSellSpot } from "./sell";
 import { Showcase } from "./showcase";
 import { TestDrive } from "./testDrive";
+import { NUI_LAYER } from "@aicore-fivem/shared";
+
+// Stacking among NUI pages (`NUI_LAYER`): set at start, not left to load order.
+SetNuiZindex(NUI_LAYER.screen);
 
 /** What happens after a screen action went through: the test drive starts, or the result is shown. */
 function started(action: ListingAction, reply: Record<string, unknown>): void {

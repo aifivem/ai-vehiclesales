@@ -1,4 +1,5 @@
 import { translate } from "./lang";
+import { groupDigits } from "@aicore-fivem/lib/shared";
 
 /** "3 h ago" from a server epoch ms and the server-minus-page clock offset. */
 export function ago(listed: number, offset: number): string {
@@ -10,4 +11,4 @@ export function ago(listed: number, offset: number): string {
   return translate("UI_TIME_DAYS", Math.floor(hours / 24));
 }
 
-export const money = (value: number): string => value.toLocaleString("en-US");
+export const money = (value: number): string => groupDigits(value);

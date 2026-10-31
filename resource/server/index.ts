@@ -4,6 +4,7 @@ import {
   onCharacter,
   onClientCallback,
   online,
+  onStop,
 } from "@aicore-fivem/lib/server";
 import { createLogger, fail, readId, readText } from "@aicore-fivem/lib/shared";
 import { ResourceName } from "common";
@@ -58,6 +59,4 @@ onClientCallback(EVENTS.endTestDrive, (source) => {
   return { ok: true };
 });
 
-on("onResourceStop", (resource: string) => {
-  if (resource === ResourceName) testDrives.stopAll();
-});
+onStop(() => testDrives.stopAll());

@@ -447,6 +447,8 @@ const CORE = {
 	vehicleTypeCallback: "ai-core:vehicleType",
 	interactionStateKey: "ai:interaction",
 	pvpStateKey: "ai:pvp",
+	medicalStateKey: "ai:medical",
+	clientDeadEvent: "ai-core:client:dead",
 	charactersCallback: "ai-core:characters",
 	createCharacterCallback: "ai-core:createCharacter",
 	deleteCharacterCallback: "ai-core:deleteCharacter",
@@ -1179,6 +1181,9 @@ var OnlinePlayers = class {
 	character(source) {
 		return this.start(), this.players.get(source)?.character ?? null;
 	}
+	charId(source) {
+		return this.start(), this.players.get(source)?.character.id;
+	}
 	name(source, options = {}) {
 		let c = this.character(source);
 		return c ? `${c.firstname} ${c.lastname}` : options.fallback === !1 ? "" : GetPlayerName(String(source));
@@ -1318,9 +1323,9 @@ function vehicleNearPlayer(source, netId, options = {}) {
 resourceExport(CORE.resource);
 // ../../../packages/lib/src/server/players.ts
 const log$6 = createLogger(GetCurrentResourceName()), dropped = new Set();
-let listening = !1;
+let listening$1 = !1;
 function onDropped(fn) {
-	listening || (listening = !0, on("playerDropped", () => {
+	listening$1 || (listening$1 = !0, on("playerDropped", () => {
 		let source = Number(globalThis.source);
 		for (let handler of dropped) handler(source);
 	})), dropped.add(fn);
@@ -1368,19 +1373,19 @@ function onCharacter(handlers) {
 		} catch (error) {
 			log$6.error(`character loaded handler failed for ${source}`, error);
 		}
-	}, end = (source, charId) => {
+	}, end = (source, charId, reason) => {
 		if (live.delete(source)) try {
-			handlers.unloaded?.(source, charId);
+			handlers.unloaded?.(source, charId, reason);
 		} catch (error) {
 			log$6.error(`character unloaded handler failed for ${source}`, error);
 		}
 	};
 	on(CORE.playerLoadedEvent, (source, character) => {
 		let previous = live.get(source);
-		previous !== void 0 && end(source, previous), deliver(source, character);
-	}), on(CORE.playerUnloadedEvent, (source, charId) => end(source, charId)), onDropped((source) => setImmediate(() => {
+		previous !== void 0 && end(source, previous, "switch"), deliver(source, character);
+	}), on(CORE.playerUnloadedEvent, (source, charId, reason) => end(source, charId, reason === "dropped" ? "dropped" : "switch")), onDropped((source) => setImmediate(() => {
 		let charId = live.get(source);
-		charId !== void 0 && end(source, charId);
+		charId !== void 0 && end(source, charId, "dropped");
 	})), setImmediate(() => {
 		for (let source of online.sources()) {
 			if (live.has(source)) continue;
@@ -1389,6 +1394,30 @@ function onCharacter(handlers) {
 		}
 	});
 }
+// ../../../packages/lib/src/server/watchers.ts
+var KeyWatchers = class {
+	byKey = new Map();
+	keys = new PlayerMap({ onDrop: (source, key) => this.leave(source, key) });
+	watch(source, key) {
+		this.stop(source), this.keys.set(source, key);
+		let set = this.byKey.get(key);
+		set || this.byKey.set(key, set = new Set()), set.add(source);
+	}
+	stop(source) {
+		let key = this.keys.get(source);
+		key !== void 0 && (this.keys.delete(source), this.leave(source, key));
+	}
+	of(key) {
+		return this.byKey.get(key);
+	}
+	keyOf(source) {
+		return this.keys.get(source);
+	}
+	leave(source, key) {
+		let set = this.byKey.get(key);
+		set && (set.delete(source), set.size === 0 && this.byKey.delete(key));
+	}
+};
 // ../../../packages/lib/src/server/progressFor.ts
 const running = new PlayerMap({ onDrop: (_source, settle) => settle(!1) });
 on(CORE.playerUnloadedEvent, (source) => {
@@ -15788,6 +15817,23 @@ async function createDatabaseTables(resource, file) {
 		else for (let [name, definition] of statement.columns) columns.has(name) || (await mysql.query(`ALTER TABLE \`${statement.table}\` ADD COLUMN ${definition}`), log$3.info(`^2added column ${statement.table}.${name}^7 (${resource})`));
 	}
 }
+// ../../../packages/lib/src/fivem/byResource.ts
+const stopHandlers = [];
+let listening = !1;
+function onAnyStop(handler) {
+	if (stopHandlers.push(handler), listening) return;
+	listening = !0;
+	let event = IsDuplicityVersion() ? "onResourceStop" : "onClientResourceStop";
+	on(event, (resource) => {
+		for (let stop of stopHandlers) stop(resource);
+	});
+}
+function onStop(fn) {
+	let self = GetCurrentResourceName();
+	onAnyStop((resource) => {
+		resource === self && fn();
+	});
+}
 let log$2 = null;
 var ScheduledJob = class {
 	interval;
@@ -16630,27 +16676,6 @@ const vehiclesApi = resourceExport("ai-vehicles"), HOLD = {
 function deliver(vehicleId, lot, source, purpose) {
 	return new Promise((resolve) => vehiclesApi.SpawnVehicle(vehicleId, lot.delivery, source, resolve, purpose)).then((netId) => (netId === null && vehiclesApi.StoreVehicle(vehicleId, null, "impound"), netId));
 }
-// resource/server/watchers.ts
-var Watchers = class {
-	byLot = new Map();
-	lotOf = new PlayerMap({ onDrop: (source, lot) => this.leave(source, lot) });
-	watch(source, lot) {
-		this.stop(source), this.lotOf.set(source, lot);
-		let set = this.byLot.get(lot);
-		set || this.byLot.set(lot, set = new Set()), set.add(source);
-	}
-	stop(source) {
-		let lot = this.lotOf.get(source);
-		lot !== void 0 && (this.lotOf.delete(source), this.leave(source, lot));
-	}
-	of(lot) {
-		return this.byLot.get(lot);
-	}
-	leave(source, lot) {
-		let set = this.byLot.get(lot);
-		set && (set.delete(source), set.size === 0 && this.byLot.delete(lot));
-	}
-};
 // resource/server/sync.ts
 const NO_LOOK = {
 	props: null,
@@ -16683,15 +16708,15 @@ function screenRow(listing, viewer) {
 	};
 }
 var LotSync = class {
-	parked = new Watchers();
-	screens = new Watchers();
+	parked = new KeyWatchers();
+	screens = new KeyWatchers();
 	watchParked(source, lot, parked) {
 		this.parked.watch(source, lot);
 		for (let i = 0; i < parked.length; i += 10) emitNet(EVENTS.display, source, lot, parked.slice(i, i + 10).map(displayRow), []);
 	}
 	watchScreen(source, lot, all) {
 		this.screens.watch(source, lot);
-		let viewer = online.character(source)?.id ?? null, chunk = [];
+		let viewer = online.charId(source) ?? null, chunk = [];
 		for (let listing of all) chunk.push(screenRow(listing, viewer)), chunk.length < 200 || (emitNet(EVENTS.listings, source, lot, chunk, []), chunk = []);
 		chunk.length > 0 && emitNet(EVENTS.listings, source, lot, chunk, []);
 	}
@@ -16704,7 +16729,7 @@ var LotSync = class {
 	screen(lot, puts, removes) {
 		let watchers = this.screens.of(lot);
 		if (!(!watchers || puts.length === 0 && removes.length === 0)) for (let source of watchers) {
-			let viewer = online.character(source)?.id ?? null;
+			let viewer = online.charId(source) ?? null;
 			emitNet(EVENTS.listings, source, lot, puts.map((l) => screenRow(l, viewer)), removes);
 		}
 	}
@@ -17155,6 +17180,4 @@ aiLogChannels({
 }, (source, lotId, id) => {
 	let lot = lots.get(lotId), listing = listings.get(id), character = online.character(source);
 	return !lot || !character || !inLot(source, lot) ? fail("ERR_FAR") : !listing || listing.lot !== lot.id ? fail("ERR_GONE") : testDrives.start(source, character.id, lot, listing);
-}), onClientCallback(EVENTS.endTestDrive, (source) => (testDrives.end(source), { ok: !0 })), on("onResourceStop", (resource) => {
-	resource === ResourceName && testDrives.stopAll();
-});
+}), onClientCallback(EVENTS.endTestDrive, (source) => (testDrives.end(source), { ok: !0 })), onStop(() => testDrives.stopAll());

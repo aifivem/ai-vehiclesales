@@ -1,4 +1,4 @@
-import { online } from "@aicore-fivem/lib/server";
+import { KeyWatchers, online } from "@aicore-fivem/lib/server";
 import {
   EVENTS,
   type DisplayRow,
@@ -7,7 +7,6 @@ import {
 } from "common/sales";
 import type { Listing } from "./listing";
 import { lookOf, vehiclesApi } from "./vehicles";
-import { Watchers } from "./watchers";
 
 const NO_LOOK: Look = { props: null, setup: null };
 /** Rows per snapshot event: parked rows carry the look (about 1 KB each), screen rows about 100 bytes. */
@@ -52,8 +51,8 @@ export function screenRow(listing: Listing, viewer: number | null): ListingRow {
  * on the same channel as the deltas (a latent event could overtake them), ahead of the watch / browse reply.
  */
 export class LotSync {
-  readonly parked = new Watchers();
-  readonly screens = new Watchers();
+  readonly parked = new KeyWatchers<string>();
+  readonly screens = new KeyWatchers<string>();
 
   /** Starts a player's parked-car deltas with every parked car of the lot. */
   watchParked(source: number, lot: string, parked: Listing[]): void {
@@ -71,7 +70,7 @@ export class LotSync {
   /** Starts a player's screen deltas with every listing of the lot. */
   watchScreen(source: number, lot: string, all: Iterable<Listing>): void {
     this.screens.watch(source, lot);
-    const viewer = online.character(source)?.id ?? null;
+    const viewer = online.charId(source) ?? null;
     let chunk: ListingRow[] = [];
     for (const listing of all) {
       chunk.push(screenRow(listing, viewer));
@@ -94,7 +93,7 @@ export class LotSync {
     const watchers = this.screens.of(lot);
     if (!watchers || (puts.length === 0 && removes.length === 0)) return;
     for (const source of watchers) {
-      const viewer = online.character(source)?.id ?? null;
+      const viewer = online.charId(source) ?? null;
       emitNet(
         EVENTS.listings,
         source,

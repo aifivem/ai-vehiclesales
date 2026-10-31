@@ -1,6 +1,6 @@
 import {
-  cache,
   callAction,
+  drivenVehicle,
   input,
   menu,
   notify,
@@ -13,8 +13,8 @@ import { settings } from "./content";
 
 /** The sell spot: list the vehicle, or (dealer on, model in the shop's catalog) sell it to the dealer at once. */
 export async function atSellSpot(lot: Lot): Promise<void> {
-  const vehicle = cache.vehicle;
-  if (vehicle === false || cache.seat !== -1) return;
+  const vehicle = drivenVehicle();
+  if (vehicle === false) return;
   const netId = NetworkGetNetworkIdFromEntity(vehicle);
   const quote =
     settings.value.dealerShare > 0
@@ -57,8 +57,8 @@ export async function atSellSpot(lot: Lot): Promise<void> {
 
 /** The sell spot: price and description in ai-core's input dialog, then the server lists the driven vehicle. */
 async function sell(lot: Lot): Promise<void> {
-  const vehicle = cache.vehicle;
-  if (vehicle === false || cache.seat !== -1) return;
+  const vehicle = drivenVehicle();
+  if (vehicle === false) return;
   const s = settings.value;
   const values = await input({
     title: Locale("SELL_TITLE", vehicleLabel(vehicle)),

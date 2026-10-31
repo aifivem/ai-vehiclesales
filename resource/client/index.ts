@@ -1,13 +1,15 @@
 import {
   cache,
+  drivenVehicle,
   notify,
   onCache,
   onServerEvent,
+  onStop,
   Points,
   Zones,
 } from "@aicore-fivem/lib/client";
 import { isRecord, num, readId, RecordObjects } from "@aicore-fivem/lib/shared";
-import { Locale, ResourceName } from "common";
+import { Locale } from "common";
 import {
   EVENTS,
   idsOf,
@@ -41,7 +43,7 @@ const drive = new TestDrive(
 );
 
 const onFoot = (): boolean => cache.vehicle === false;
-const driving = (): boolean => cache.vehicle !== false && cache.seat === -1;
+const driving = (): boolean => drivenVehicle() !== false;
 
 /**
  * Each lot: the counter (browse, NPC, blip), the sell spot (while driving) and the area its parked cars show in. An
@@ -123,8 +125,7 @@ browser.page.on("buy", idOf, (id) => browser.act("buy", id));
 browser.page.on("testDrive", idOf, (id) => browser.act("testDrive", id));
 browser.page.on("takeBack", idOf, (id) => browser.act("takeBack", id));
 
-on("onResourceStop", (resource: string) => {
-  if (resource !== ResourceName) return;
+onStop(() => {
   if (browser.page.isOpen) browser.page.close();
   showcase.leave(false);
 });

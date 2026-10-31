@@ -1,6 +1,6 @@
-import { requestModel, ScriptCamera } from "@aicore-fivem/lib/client";
+import { PreviewVehicle, ScriptCamera } from "@aicore-fivem/lib/client";
 import type { Look, Lot } from "common/sales";
-import { applyLook, standStill } from "./content";
+import { applyLook } from "./content";
 
 interface Shown {
   model: string;
@@ -14,8 +14,7 @@ interface Shown {
  */
 export class Showroom {
   private readonly camera = new ScriptCamera();
-  private vehicle = 0;
-  private token = 0;
+  private readonly preview = new PreviewVehicle();
   private lot: Lot | null = null;
   private shown: Shown | null = null;
 
@@ -31,16 +30,10 @@ export class Showroom {
 
   async show(shown: Shown): Promise<void> {
     this.shown = shown;
-    const token = ++this.token;
-    const hash = await requestModel(shown.model).catch(() => 0);
-    const lot = this.lot;
-    if (!hash || !lot || token !== this.token) return;
-    this.clear(false);
-    const p = lot.preview;
-    this.vehicle = CreateVehicle(hash, p.x, p.y, p.z, p.heading, false, false);
-    SetModelAsNoLongerNeeded(hash);
-    applyLook(this.vehicle, shown.look, shown.plate);
-    standStill(this.vehicle);
+    if (!this.lot) return;
+    await this.preview.show(shown.model, this.lot.preview, (vehicle) =>
+      applyLook(vehicle, shown.look, shown.plate),
+    );
   }
 
   /** Shows the last shown vehicle again (an action that cleared it was refused). */
@@ -50,9 +43,7 @@ export class Showroom {
 
   /** Removes the preview vehicle; `forget` also drops what it showed. */
   clear(forget = true): void {
-    this.token++;
-    if (this.vehicle) DeleteEntity(this.vehicle);
-    this.vehicle = 0;
+    this.preview.clear();
     if (forget) this.shown = null;
   }
 

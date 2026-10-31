@@ -1,11 +1,10 @@
 import {
   aiLog,
-  EntityState,
+  fuel,
   nearestVehicleAt,
   onClientCallback,
   online,
   resourceExport,
-  stateNumber,
   vehicleKeys,
 } from "@aicore-fivem/lib/server";
 import {
@@ -15,7 +14,6 @@ import {
   readText,
   stripGameText,
 } from "@aicore-fivem/lib/shared";
-import { VEHICLE_BAGS } from "@aicore-fivem/shared";
 import { DESCRIPTION_MAX, EVENTS, payoutOf } from "common/sales";
 import { inLot } from "./browse";
 import { lots, settings } from "./content";
@@ -25,7 +23,6 @@ import { drivenAtSellSpot, sellLock } from "./sellSpot";
 import { characterOwner, deliver, HOLD, isHeld, vehiclesApi } from "./vehicles";
 
 const core = resourceExport("ai-core");
-const fuelBag = new EntityState(VEHICLE_BAGS.fuel, stateNumber);
 
 /** Takes the price from the panel's accounts in order; the account it came from, or null. */
 function charge(source: number, price: number, reason: string): string | null {
@@ -98,13 +95,12 @@ onClientCallback(
         return fail(typeof still === "string" ? still : "ERR_FAILED");
       }
       const { entity } = still;
-      // The condition is the server's; the stored look stays (only ai-mechanic changes tuning).
+      // The condition is the server's (fuel through ai-core's fuel layer); the stored look stays.
+      const level = fuel.get(entity);
       vehiclesApi.SaveVehicle(vehicleId, {
         engine: GetVehicleEngineHealth(entity),
         body: GetVehicleBodyHealth(entity),
-        ...(fuelBag.get(entity) !== undefined
-          ? { fuel: fuelBag.get(entity) }
-          : {}),
+        ...(level !== null ? { fuel: level } : {}),
       });
       vehiclesApi.StoreVehicle(vehicleId, null, "garage");
       vehiclesApi.SetOwner(vehicleId, HOLD);

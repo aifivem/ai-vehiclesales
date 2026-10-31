@@ -449,6 +449,12 @@ const CORE = {
 	pvpStateKey: "ai:pvp",
 	medicalStateKey: "ai:medical",
 	clientDeadEvent: "ai-core:client:dead",
+	mdtStateKey: "ai:mdt",
+	billsEvent: "ai-core:client:bills",
+	payBillCallback: "ai-core:payBill",
+	clientSeatbeltEvent: "ai-core:client:seatbelt",
+	stressRelayEvent: "ai-core:client:stress",
+	notifyStateKey: "ai:notify",
 	charactersCallback: "ai-core:characters",
 	createCharacterCallback: "ai-core:createCharacter",
 	deleteCharacterCallback: "ai-core:deleteCharacter",
@@ -482,7 +488,8 @@ const CORE = {
 	progressForCallback: "ai-lib:progressFor",
 	progressForCancelEvent: "ai-lib:client:progressForCancel",
 	minigameForCallback: "ai-lib:minigameFor",
-	zoneEvent: "ai-lib:client:zone"
+	zoneEvent: "ai-lib:client:zone",
+	modelPointEvent: "ai-lib:client:modelPoint"
 }, named = new Set();
 function registerExport(name, handler) {
 	named.add(name), globalThis.exports(name, handler);
@@ -527,7 +534,7 @@ function isNear(source, point, metres) {
 	return dx * dx + dy * dy + dz * dz <= metres * metres;
 }
 resourceExport(CORE.resource);
-const log$8 = createLogger(GetCurrentResourceName()), gates = new Set();
+const log$7 = createLogger(GetCurrentResourceName()), gates = new Set();
 on("playerDropped", () => {
 	let source = Number(globalThis.source);
 	for (let gate of gates) gate.release(source);
@@ -568,11 +575,11 @@ var ClientGate = class {
 		this.refusals.set(source, {
 			at: now,
 			skipped: 0
-		}), log$8.warn(`${this.name} refused for ${GetPlayerName(String(source))} (${source}): ${typeof reason == "string" ? reason : reason()}${more}`);
+		}), log$7.warn(`${this.name} refused for ${GetPlayerName(String(source))} (${source}): ${typeof reason == "string" ? reason : reason()}${more}`);
 	}
 };
 // ../../../packages/lib/src/server/callback.ts
-const log$7 = createLogger(GetCurrentResourceName()), resource$4 = GetCurrentResourceName(), REFUSED = Symbol("refused");
+const log$6 = createLogger(GetCurrentResourceName()), resource$4 = GetCurrentResourceName(), REFUSED = Symbol("refused");
 function onClientCallback(name, first, second) {
 	let [handler, options] = typeof first == "function" ? [first, second ?? {}] : [second, first], gate = new ClientGate(name, options, 20);
 	onNet(requestEvent(name), async (caller, id, ...raw) => {
@@ -584,7 +591,7 @@ function onClientCallback(name, first, second) {
 			let result = await gate.run(source, REFUSED, () => handler(source, ...args));
 			result === REFUSED ? emitNet(responseEvent(caller), source, id, !1, null) : emitNet(responseEvent(caller), source, id, !0, result ?? null);
 		} catch (error) {
-			log$7.error(`callback ${name} failed for ${source}`, error), emitNet(responseEvent(caller), source, id, !1, null);
+			log$6.error(`callback ${name} failed for ${source}`, error), emitNet(responseEvent(caller), source, id, !1, null);
 		}
 	});
 }
@@ -650,7 +657,7 @@ function toPatch(value) {
 		default: return null;
 	}
 }
-const clone = (value) => value === void 0 ? value : JSON.parse(JSON.stringify(value)), core$19 = resourceExport(CORE.resource), ERR = {
+const clone = (value) => value === void 0 ? value : JSON.parse(JSON.stringify(value)), core$27 = resourceExport(CORE.resource), ERR = {
 	type: "ADMIN_ERR_TYPE",
 	range: "ADMIN_ERR_RANGE",
 	length: "ADMIN_ERR_LENGTH",
@@ -664,7 +671,7 @@ const clone = (value) => value === void 0 ? value : JSON.parse(JSON.stringify(va
 		if (cached && Date.now() - cached.at < 2e3) return cached.values.size > 0 ? cached.values : null;
 		let list = [];
 		try {
-			list = core$19.GetLookupValues(source);
+			list = core$27.GetLookupValues(source);
 		} catch {}
 		let values = new Set(Array.isArray(list) ? list.filter((v) => typeof v == "string") : []);
 		return this.lists.set(source, {
@@ -929,7 +936,7 @@ function writeSchema(resource, name, text, log) {
 	(0, node_fs_promises.mkdir)(dir, { recursive: !0 }).then(() => (0, node_fs_promises.writeFile)(`${dir}/${name}.schema.json`, text, "utf8")).catch((error) => log.error(`writing ${resource}/${path} failed`, error));
 }
 // ../../../packages/lib/src/server/admin/panel.ts
-const core$18 = resourceExport(CORE.resource);
+const core$26 = resourceExport(CORE.resource);
 var AdminPanel = class {
 	schema;
 	data = new Map();
@@ -948,7 +955,7 @@ var AdminPanel = class {
 		registerExport("AdminPanelSnapshot", () => this.snapshot()), registerExport("AdminPanelData", () => this.dataSnapshot()), registerExport("AdminPanelSummary", () => this.summary()), registerExport("AdminPanelApply", (admin, patch) => this.apply(admin, patch)), onClientCallback(ADMIN.worldChangesCallback(this.resource), () => Object.fromEntries(this.worldChanges), { rate: {
 			count: 4,
 			windowMs: 1e4
-		} }), setImmediate(() => core$18.RegisterAdminPanel(this.resource));
+		} }), setImmediate(() => core$26.RegisterAdminPanel(this.resource));
 	}
 	get(file) {
 		return this.data.get(file) ?? {};
@@ -1062,7 +1069,7 @@ var AdminPanel = class {
 		let spec = this.schema.files[file], data = this.get(file), value = key === void 0 ? data : data[key] ?? null;
 		this.dataFiles.get(file)?.write(data), this.views.changed(file, key, value);
 		for (let handler of this.handlers.get(file) ?? []) handler(key, value);
-		if (core$18.AdminPanelChanged({
+		if (core$26.AdminPanelChanged({
 			resource: this.resource,
 			file,
 			key,
@@ -1110,7 +1117,7 @@ function notify(source, text, kind = "info", duration) {
 }
 resourceExport(CORE.resource);
 // ../../../packages/lib/src/server/online.ts
-const core$16 = resourceExport(CORE.resource);
+const core$24 = resourceExport(CORE.resource);
 function reindex(index, source, before, after) {
 	for (let name of before) {
 		let set = index.get(name);
@@ -1138,11 +1145,11 @@ var OnlinePlayers = class {
 				gangs: [],
 				gangNames: [],
 				duty: null
-			}), this.setJobs(source, core$16.GetJobs(source) ?? []), this.setGangs(source, core$16.GetGangs(source) ?? []), this.setDuty(source, core$16.GetDutyJob(source));
+			}), this.setJobs(source, core$24.GetJobs(source) ?? []), this.setGangs(source, core$24.GetGangs(source) ?? []), this.setDuty(source, core$24.GetDutyJob(source));
 		};
 		on(CORE.playerLoadedEvent, load), on(CORE.playerUnloadedEvent, (source) => this.drop(source)), on(CORE.jobsChangedEvent, (source, jobs) => this.setJobs(source, jobs)), on(CORE.gangsChangedEvent, (source, gangs) => this.setGangs(source, gangs)), on(CORE.dutyChangedEvent, (source, job) => this.setDuty(source, job));
-		for (let source of core$16.GetLoadedSources()) {
-			let character = core$16.GetCharacter(source);
+		for (let source of core$24.GetLoadedSources()) {
+			let character = core$24.GetCharacter(source);
 			character && load(source, character);
 		}
 	}
@@ -1238,10 +1245,14 @@ var OnlinePlayers = class {
 		return this.start(), this.onDuty.get(job) ?? EMPTY;
 	}
 };
-const EMPTY = new Set(), online = new OnlinePlayers(), core$15 = resourceExport(CORE.resource), vehicleKeys = {
-	give: (source, vehicle, purpose = "temporary") => core$15.GiveVehicleKeys(source, vehicle, purpose),
-	remove: (source, vehicle) => core$15.RemoveVehicleKeys(source, vehicle),
-	has: (source, vehicle) => core$15.HasVehicleKeys(source, vehicle)
+const EMPTY = new Set(), online = new OnlinePlayers(), core$23 = resourceExport(CORE.resource), vehicleKeys = {
+	give: (source, vehicle, purpose = "temporary") => core$23.GiveVehicleKeys(source, vehicle, purpose),
+	remove: (source, vehicle) => core$23.RemoveVehicleKeys(source, vehicle),
+	has: (source, vehicle) => core$23.HasVehicleKeys(source, vehicle)
+}, core$22 = resourceExport(CORE.resource), fuel = {
+	get: (vehicle) => core$22.GetVehicleFuel(vehicle),
+	set: (vehicle, level) => core$22.SetVehicleFuel(vehicle, level),
+	provider: () => core$22.GetFuelSystem()
 }, TYPES = new Set([
 	"automobile",
 	"bike",
@@ -1287,7 +1298,7 @@ async function spawnVehicle(options) {
 	let plate = (options.plate ?? randomPlate()).slice(0, 8);
 	SetVehicleNumberPlateText(vehicle, plate), options.bucket !== void 0 && SetEntityRoutingBucket(vehicle, options.bucket), options.locked && SetVehicleDoorsLocked(vehicle, 2);
 	let state = Entity(vehicle).state;
-	options.fuel !== void 0 && state.set(VEHICLE_BAGS.fuel, options.fuel, !0), options.props && state.set(VEHICLE_BAGS.props, options.props, !0), options.setup && state.set(VEHICLE_BAGS.setup, options.setup, !0);
+	options.fuel !== void 0 && fuel.set(vehicle, options.fuel), options.props && state.set(VEHICLE_BAGS.props, options.props, !0), options.setup && state.set(VEHICLE_BAGS.setup, options.setup, !0);
 	for (let [key, value] of Object.entries(options.bags ?? {})) state.set(key, value, !0);
 	if (options.keysTo !== void 0) {
 		let synced = await waitFor(() => !DoesEntityExist(vehicle) || GetVehicleNumberPlateText(vehicle).trim() === plate.trim() || void 0, 3e3).catch(() => !1);
@@ -1323,7 +1334,7 @@ function vehicleNearPlayer(source, netId, options = {}) {
 }
 resourceExport(CORE.resource);
 // ../../../packages/lib/src/server/players.ts
-const log$6 = createLogger(GetCurrentResourceName()), dropped = new Set();
+const log$5 = createLogger(GetCurrentResourceName()), dropped = new Set();
 let listening$1 = !1;
 function onDropped(fn) {
 	listening$1 || (listening$1 = !0, on("playerDropped", () => {
@@ -1370,15 +1381,15 @@ function onCharacter(handlers) {
 	let live = new Map(), deliver = (source, character) => {
 		if (live.set(source, character.id), handlers.loaded) try {
 			let result = handlers.loaded(source, character);
-			result instanceof Promise && result.catch((error) => log$6.error(`character loaded handler failed for ${source}`, error));
+			result instanceof Promise && result.catch((error) => log$5.error(`character loaded handler failed for ${source}`, error));
 		} catch (error) {
-			log$6.error(`character loaded handler failed for ${source}`, error);
+			log$5.error(`character loaded handler failed for ${source}`, error);
 		}
 	}, end = (source, charId, reason) => {
 		if (live.delete(source)) try {
 			handlers.unloaded?.(source, charId, reason);
 		} catch (error) {
-			log$6.error(`character unloaded handler failed for ${source}`, error);
+			log$5.error(`character unloaded handler failed for ${source}`, error);
 		}
 	};
 	on(CORE.playerLoadedEvent, (source, character) => {
@@ -1426,7 +1437,7 @@ on(CORE.playerUnloadedEvent, (source) => {
 	settle && settle(!1);
 });
 // ../../../packages/lib/src/server/definitions.ts
-const core$13 = resourceExport("ai-core");
+const core$20 = resourceExport("ai-core");
 new class {
 	jobs = new Map();
 	gangs = new Map();
@@ -1437,11 +1448,11 @@ new class {
 	}
 	job(name) {
 		let def = this.jobs.get(name);
-		return def === void 0 && this.jobs.set(name, def = core$13.GetJobDefinition(name) ?? null), def;
+		return def === void 0 && this.jobs.set(name, def = core$20.GetJobDefinition(name) ?? null), def;
 	}
 	gang(name) {
 		let def = this.gangs.get(name);
-		return def === void 0 && this.gangs.set(name, def = core$13.GetGangDefinition(name) ?? null), def;
+		return def === void 0 && this.gangs.set(name, def = core$20.GetGangDefinition(name) ?? null), def;
 	}
 }();
 // ../../../packages/lib/src/server/command.ts
@@ -1473,12 +1484,12 @@ createLogger(resource$3), new class {
 	}
 }();
 // ../../../packages/lib/src/server/netEvent.ts
-const log$4 = createLogger(GetCurrentResourceName());
+const log$3 = createLogger(GetCurrentResourceName());
 function onClientEvent(name, first, second) {
 	let [handler, options] = typeof first == "function" ? [first, second ?? {}] : [second, first], gate = new ClientGate(name, options, 10);
 	onNet(name, (...raw) => {
 		let source = Number(globalThis.source), args = gate.check(source, raw);
-		args && gate.run(source, void 0, () => handler(source, ...args)).catch((error) => log$4.error(`event ${name} failed for ${source}`, error));
+		args && gate.run(source, void 0, () => handler(source, ...args)).catch((error) => log$3.error(`event ${name} failed for ${source}`, error));
 	});
 }
 // ../../../packages/mysql/src/typeCast.ts
@@ -15764,7 +15775,7 @@ const mysql = {
 	startTransaction: (work) => runStartTransaction(work).catch((error) => (console.error(errorText(resource, error)), !1)),
 	setPoolSize,
 	close: closePool
-}, tables = () => typedDb(mysql), log$3 = createLogger("aicore-lib"), CREATE_TABLE = /^CREATE\s+TABLE\s+IF\s+NOT\s+EXISTS\s+`?([A-Za-z0-9_]+)`?\s*\(/i, NON_COLUMN_LINE = /^(PRIMARY|UNIQUE|KEY|INDEX|CONSTRAINT|FOREIGN|FULLTEXT|SPATIAL|CHECK)\b/i;
+}, tables = () => typedDb(mysql), log$2 = createLogger("aicore-lib"), CREATE_TABLE = /^CREATE\s+TABLE\s+IF\s+NOT\s+EXISTS\s+`?([A-Za-z0-9_]+)`?\s*\(/i, NON_COLUMN_LINE = /^(PRIMARY|UNIQUE|KEY|INDEX|CONSTRAINT|FOREIGN|FULLTEXT|SPATIAL|CHECK)\b/i;
 function stripComments(sql) {
 	return sql.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*--.*$/gm, "");
 }
@@ -15810,12 +15821,12 @@ async function createDatabaseTables(resource, file) {
 	for (let sql of statements) {
 		let statement = parseStatement(sql);
 		if (!statement) {
-			log$3.warn(`${resource}/${file}: skipped statement (only CREATE TABLE IF NOT EXISTS is applied)`);
+			log$2.warn(`${resource}/${file}: skipped statement (only CREATE TABLE IF NOT EXISTS is applied)`);
 			continue;
 		}
 		let columns = await existingColumns(statement.table);
-		if (!columns) await mysql.query(statement.sql), log$3.info(`^2created table ${statement.table}^7 (${resource})`);
-		else for (let [name, definition] of statement.columns) columns.has(name) || (await mysql.query(`ALTER TABLE \`${statement.table}\` ADD COLUMN ${definition}`), log$3.info(`^2added column ${statement.table}.${name}^7 (${resource})`));
+		if (!columns) await mysql.query(statement.sql), log$2.info(`^2created table ${statement.table}^7 (${resource})`);
+		else for (let [name, definition] of statement.columns) columns.has(name) || (await mysql.query(`ALTER TABLE \`${statement.table}\` ADD COLUMN ${definition}`), log$2.info(`^2added column ${statement.table}.${name}^7 (${resource})`));
 	}
 }
 // ../../../packages/lib/src/fivem/byResource.ts
@@ -15835,47 +15846,8 @@ function onStop(fn) {
 		resource === self && fn();
 	});
 }
-let log$2 = null;
-var ScheduledJob = class {
-	interval;
-	fn;
-	name;
-	gen = 0;
-	active = !1;
-	stopped = !1;
-	quietUntil = 0;
-	skipped = 0;
-	constructor(interval, fn, name) {
-		this.interval = interval, this.fn = fn, this.name = name;
-	}
-	get running() {
-		return this.active;
-	}
-	set(active) {
-		active === this.active || active && this.stopped || (this.active = active, active ? scheduler.activate(this) : scheduler.deactivate(this));
-	}
-	stop() {
-		this.set(!1), this.stopped = !0;
-	}
-	call() {
-		try {
-			let result = this.fn();
-			result instanceof Promise && result.catch((error) => this.fail(error));
-		} catch (error) {
-			this.fail(error);
-		}
-	}
-	fail(error) {
-		let now = GetGameTimer();
-		if (now < this.quietUntil) {
-			this.skipped++;
-			return;
-		}
-		this.quietUntil = now + 1e4;
-		let more = this.skipped ? ` (+${this.skipped} more)` : "";
-		this.skipped = 0, log$2 ??= createLogger(GetCurrentResourceName()), log$2.error(`job "${this.name}" failed${more}`, error instanceof Error ? error.stack ?? error.message : error);
-	}
-}, Group = class {
+// ../../../packages/lib/src/fivem/scheduler.ts
+var Group = class {
 	interval;
 	jobs = Array(8);
 	gens = Array(8).fill(0);
@@ -15925,7 +15897,7 @@ var ScheduledJob = class {
 		this.jobs = jobs, this.gens = gens, this.dues = dues, this.head = 0, this.mask = size - 1;
 	}
 };
-const scheduler = new class {
+new class {
 	groups = [];
 	byInterval = new Map();
 	tick = null;
@@ -15960,81 +15932,17 @@ const scheduler = new class {
 		}
 		groups.length = kept, this.nextDue = soonest;
 	};
-}();
-function every(ms, fn, options = {}) {
-	let job = new ScheduledJob(Math.max(0, Math.floor(ms)), fn, options.name ?? (fn.name || "anonymous"));
-	return options.active !== !1 && job.set(!0), job;
-}
-// ../../../packages/lib/src/fivem/state.ts
-const stateNumber = (v) => typeof v == "number" && Number.isFinite(v) ? v : void 0, isServer = IsDuplicityVersion();
-var Mirror = class {
-	key;
-	parse;
-	values = new Map();
-	listeners = new Set();
-	constructor(key, parse) {
-		this.key = key, this.parse = parse;
-	}
-	onChange(listener) {
-		return this.listeners.add(listener), () => this.listeners.delete(listener);
-	}
-	store(id, raw) {
-		this.apply(id, raw == null ? void 0 : this.parse(raw));
-	}
-	apply(id, value) {
-		let old = this.values.get(id);
-		if (this.values.set(id, value), old !== value) for (let listener of this.listeners) listener(id, value, old);
-	}
-}, EntityState$1 = class extends Mirror {
-	handles = new Map();
-	constructor(key, parse) {
-		super(key, parse), AddStateBagChangeHandler(key, "", (bag, _key, value) => {
-			if (!bag.startsWith("entity:")) return;
-			let netId = Number(bag.slice(7));
-			this.handles.set(netId, GetEntityFromStateBagName(bag)), this.store(netId, value);
-		}), isServer ? on("entityRemoved", (entity) => this.forget(NetworkGetNetworkIdFromEntity(entity))) : every(3e4, () => this.prune(), { name: `state ${key}` });
-	}
-	get(entity) {
-		if (!entity) return;
-		let netId = NetworkGetNetworkIdFromEntity(entity), handle = this.handles.get(netId);
-		if (handle === entity) return this.values.get(netId);
-		if (handle === 0 && this.values.has(netId)) return this.handles.set(netId, entity), this.values.get(netId);
-		this.handles.set(netId, entity);
-		let value = this.parseRaw(Entity(entity).state[this.key]);
-		return this.values.set(netId, value), value;
-	}
-	put(entity, value) {
-		let netId = NetworkGetNetworkIdFromEntity(entity);
-		this.handles.set(netId, entity), this.apply(netId, value);
-	}
-	getByNetId(netId) {
-		return this.values.get(netId);
-	}
-	forget(netId) {
-		this.values.delete(netId), this.handles.delete(netId);
-	}
-	parseRaw(raw) {
-		return raw == null ? void 0 : this.parse(raw);
-	}
-	prune() {
-		for (let netId of this.values.keys()) DoesEntityExist(NetworkGetEntityFromNetworkId(netId)) || this.forget(netId);
-	}
-}, EntityState = class extends EntityState$1 {
-	set(entity, value) {
-		DoesEntityExist(entity) && (Entity(entity).state.set(this.key, value ?? null, !0), this.put(entity, value));
-	}
-};
-resourceExport(CORE.resource), resourceExport(CORE.resource);
+}(), IsDuplicityVersion(), resourceExport(CORE.resource), resourceExport(CORE.resource);
 // ../../../packages/lib/src/server/phone.ts
-const core$10 = resourceExport(CORE.resource), phone = {
-	number: (source) => core$10.GetPhoneNumber(source),
-	sourceOf: (number) => core$10.GetSourceByPhone(number),
-	hasPhone: (source) => core$10.HasPhone(source),
-	mail: (to, mail) => core$10.SendPhoneMail(to, mail),
-	message: (from, to, text) => core$10.SendPhoneMessage(from, to, text),
-	notify: (source, notification) => core$10.PhoneNotify(source, notification)
+const core$17 = resourceExport(CORE.resource), phone = {
+	number: (source) => core$17.GetPhoneNumber(source),
+	sourceOf: (number) => core$17.GetSourceByPhone(number),
+	hasPhone: (source) => core$17.HasPhone(source),
+	mail: (to, mail) => core$17.SendPhoneMail(to, mail),
+	message: (from, to, text) => core$17.SendPhoneMessage(from, to, text),
+	notify: (source, notification) => core$17.PhoneNotify(source, notification)
 };
-resourceExport(CORE.resource), resourceExport(CORE.resource), resourceExport(CORE.resource), resourceExport(CORE.resource), resourceExport(CORE.resource), resourceExport(CORE.resource), resourceExport(CORE.resource);
+resourceExport(CORE.resource), resourceExport(CORE.resource), resourceExport(CORE.resource), resourceExport(CORE.resource), resourceExport(CORE.resource), resourceExport(CORE.resource), resourceExport(CORE.resource), resourceExport(CORE.resource), resourceExport(CORE.resource), resourceExport(CORE.resource), resourceExport(CORE.resource), resourceExport(CORE.resource), resourceExport(CORE.resource), resourceExport(CORE.resource);
 // resource/common/locale.ts
 const Locale = createLocale(), ResourceName = GetCurrentResourceName();
 IsDuplicityVersion();
@@ -16987,7 +16895,7 @@ function drivenAtSellSpot(source, lotId, netId) {
 	};
 }
 // resource/server/actions.ts
-const core$1 = resourceExport("ai-core"), fuelBag = new EntityState(VEHICLE_BAGS.fuel, stateNumber);
+const core$1 = resourceExport("ai-core");
 function charge(source, price, reason) {
 	for (let account of settings.value.accounts) if (core$1.RemoveMoney(source, account, price, reason)) return account;
 	return null;
@@ -17040,11 +16948,11 @@ onClientCallback(EVENTS.list, {
 	if (!listing) return fail("ERR_FAILED");
 	let still = drivenAtSellSpot(source, lotId, netId);
 	if (typeof still == "string" || still.vehicleId !== vehicleId) return await listings.discard(listing), fail(typeof still == "string" ? still : "ERR_FAILED");
-	let { entity } = still;
+	let { entity } = still, level = fuel.get(entity);
 	return vehiclesApi.SaveVehicle(vehicleId, {
 		engine: GetVehicleEngineHealth(entity),
 		body: GetVehicleBodyHealth(entity),
-		...fuelBag.get(entity) === void 0 ? {} : { fuel: fuelBag.get(entity) }
+		...level === null ? {} : { fuel: level }
 	}), vehiclesApi.StoreVehicle(vehicleId, null, "garage"), vehiclesApi.SetOwner(vehicleId, HOLD), vehicleKeys.remove(source, vehicle.plate), listings.add(listing), aiLog("listings", `listed ${vehicle.plate} for $${price} at ${lot.id}`, {
 		source,
 		metadata: {

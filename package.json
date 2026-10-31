@@ -7,7 +7,7 @@
   "author": {
     "name": "TGIANN"
   },
-  "repository": "github:TGIANN/ai-vehiclesales",
+  "repository": "github:aifivem/ai-vehiclesales",
   "type": "module",
   "fxDependencies": [
     "/onesync",

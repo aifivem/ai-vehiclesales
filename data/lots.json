@@ -1,14 +1,14 @@
 {
   "$schema": "./schemas/lots.schema.json",
   "sandy": {
-    "label": "Larry's RV Sales",
+    "label": "Larry's Vehicle Sales",
     "coords": {
-      "x": 1224.5,
-      "y": 2734.5,
-      "z": 38.0
+      "x": 1235.61,
+      "y": 2733.44,
+      "z": 37.4
     },
     "radius": 2,
-    "area": 80,
+    "area": 98,
     "sell": {
       "x": 1235.61,
       "y": 2733.44,

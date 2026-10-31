@@ -9,7 +9,7 @@ import { fail, readId, readText } from "@aicore-fivem/lib/shared";
 import { dealerPriceOf, EVENTS } from "common/sales";
 import { settings } from "./content";
 import { listings } from "./listings";
-import { drivenAtSellSpot, type DrivenVehicle } from "./sellSpot";
+import { drivenAtSellSpot, sellLock, type DrivenVehicle } from "./sellSpot";
 import { vehiclesApi } from "./vehicles";
 
 /** The dealer buy-back (qb-vehiclesales "sell back car"): a share of ai-vehicleshop's catalog price, paid at once. */
@@ -50,36 +50,37 @@ onClientCallback(EVENTS.quote, { args }, (source, lotId, netId) => {
 onClientCallback(
   EVENTS.sellBack,
   { args, lock: true },
-  (source, lotId, netId) => {
-    const driven = drivenAtSellSpot(source, lotId, netId);
-    if (typeof driven === "string") return fail(driven);
-    const price = dealerPrice(driven);
-    if (typeof price === "string") return fail(price);
-    const { vehicle, vehicleId, entity, lot } = driven;
-    const account = settings.value.payoutAccount;
-    // Paid first: a failed payment keeps the vehicle; the delete itself cannot fail.
-    if (
-      !core.AddMoney(
-        source,
-        account,
-        price,
-        `vehiclesales:dealer:${vehicle.plate}`,
+  (source, lotId, netId) =>
+    sellLock.run(source, fail("ERR_PENDING"), async () => {
+      const driven = drivenAtSellSpot(source, lotId, netId);
+      if (typeof driven === "string") return fail(driven);
+      const price = dealerPrice(driven);
+      if (typeof price === "string") return fail(price);
+      const { vehicle, vehicleId, entity, lot } = driven;
+      const account = settings.value.payoutAccount;
+      // Paid first: a failed payment keeps the vehicle; the delete itself cannot fail.
+      if (
+        !core.AddMoney(
+          source,
+          account,
+          price,
+          `vehiclesales:dealer:${vehicle.plate}`,
+        )
       )
-    )
-      return fail("ERR_FAILED");
-    vehicleKeys.remove(source, vehicle.plate);
-    vehiclesApi.DeleteVehicle(vehicleId);
-    if (DoesEntityExist(entity)) DeleteEntity(entity);
-    aiLog("sales", `sold ${vehicle.plate} to the dealer for $${price}`, {
-      source,
-      metadata: {
-        plate: vehicle.plate,
-        model: vehicle.model,
-        price,
-        account,
-        lot: lot.id,
-      },
-    });
-    return { ok: true, price };
-  },
+        return fail("ERR_FAILED");
+      vehicleKeys.remove(source, vehicle.plate);
+      vehiclesApi.DeleteVehicle(vehicleId);
+      if (DoesEntityExist(entity)) DeleteEntity(entity);
+      aiLog("sales", `sold ${vehicle.plate} to the dealer for $${price}`, {
+        source,
+        metadata: {
+          plate: vehicle.plate,
+          model: vehicle.model,
+          price,
+          account,
+          lot: lot.id,
+        },
+      });
+      return { ok: true, price };
+    }),
 );

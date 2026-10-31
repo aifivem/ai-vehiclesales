@@ -35,6 +35,7 @@
   "ERR_FAILED": "That did not work, try again",
   "ERR_OWN": "You cannot buy your own vehicle, take it back instead",
   "ERR_BUSY": "Someone else is dealing for this vehicle right now",
+  "ERR_PENDING": "Wait, your last sale is still going through",
   "ERR_BLOCKED": "Something is standing on the delivery spot",
   "ERR_NO_DEALER": "The dealer does not buy this vehicle",
   "ERR_MONEY": "You do not have enough money",

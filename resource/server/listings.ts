@@ -109,6 +109,11 @@ class Listings {
     );
   }
 
+  /** Deletes the row of a created listing that was never added (the vehicle changed during the insert). */
+  async discard(listing: Listing): Promise<void> {
+    await db.remove("ai_vehiclesales_listings", { id: listing.id });
+  }
+
   add(listing: Listing): void {
     const change = this.index(listing);
     this.sync.display(listing.lot, change.parked, change.unparked);

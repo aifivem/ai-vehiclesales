@@ -446,6 +446,7 @@ const CORE = {
 	clientDefinitionsEvent: "ai-core:client:definitions",
 	vehicleTypeCallback: "ai-core:vehicleType",
 	interactionStateKey: "ai:interaction",
+	pvpStateKey: "ai:pvp",
 	charactersCallback: "ai-core:characters",
 	createCharacterCallback: "ai-core:createCharacter",
 	deleteCharacterCallback: "ai-core:deleteCharacter",
@@ -941,7 +942,7 @@ var AdminPanel = class {
 	constructor(schema) {
 		this.schema = schema;
 		for (let [name, spec] of Object.entries(schema.files)) this.load(name, spec);
-		registerExport("AdminPanelSnapshot", () => this.snapshot()), registerExport("AdminPanelSummary", () => this.summary()), registerExport("AdminPanelApply", (admin, patch) => this.apply(admin, patch)), onClientCallback(ADMIN.worldChangesCallback(this.resource), () => Object.fromEntries(this.worldChanges), { rate: {
+		registerExport("AdminPanelSnapshot", () => this.snapshot()), registerExport("AdminPanelData", () => this.dataSnapshot()), registerExport("AdminPanelSummary", () => this.summary()), registerExport("AdminPanelApply", (admin, patch) => this.apply(admin, patch)), onClientCallback(ADMIN.worldChangesCallback(this.resource), () => Object.fromEntries(this.worldChanges), { rate: {
 			count: 4,
 			windowMs: 1e4
 		} }), setImmediate(() => core$18.RegisterAdminPanel(this.resource));
@@ -969,8 +970,11 @@ var AdminPanel = class {
 			resource: this.resource,
 			schema: this.schema,
 			texts: loadLocaleTexts(),
-			data: clone(Object.fromEntries(this.data))
+			data: this.dataSnapshot()
 		};
+	}
+	dataSnapshot() {
+		return clone(Object.fromEntries(this.data));
 	}
 	summary() {
 		let data = {}, index = {};
@@ -16750,6 +16754,9 @@ const listings = new class {
 		});
 		return id === null ? null : new Listing(id, data.vehicleId, data.lot, data.seller, data.sellerName, data.model, data.plate, data.price, data.description, Date.now());
 	}
+	async discard(listing) {
+		await db.remove("ai_vehiclesales_listings", { id: listing.id });
+	}
 	add(listing) {
 		let change = this.index(listing);
 		this.sync.display(listing.lot, change.parked, change.unparked), this.sync.screen(listing.lot, [listing], []);
@@ -16931,7 +16938,7 @@ const core$2 = resourceExport("ai-core"), log$1 = createLogger(ResourceName), pa
 	stopAll() {
 		for (let drive of this.drives.values()) this.clear(drive);
 	}
-}(), onlyDriver = (vehicle, ped) => {
+}(), sellLock = new SourceLock(), onlyDriver = (vehicle, ped) => {
 	for (let seat = 0; seat < 15; seat++) {
 		let rider = GetPedInVehicleSeat(vehicle, seat);
 		if (rider && rider !== ped) return !1;
@@ -16987,10 +16994,10 @@ onClientCallback(EVENTS.list, {
 		];
 	},
 	lock: !0
-}, async (source, lotId, netId, price, description) => {
+}, (source, lotId, netId, price, description) => sellLock.run(source, fail("ERR_PENDING"), async () => {
 	let driven = drivenAtSellSpot(source, lotId, netId);
 	if (typeof driven == "string") return fail(driven);
-	let { lot, character, entity, vehicleId, vehicle } = driven, { minPrice, maxPrice, maxListings } = settings.value;
+	let { lot, character, vehicleId, vehicle } = driven, { minPrice, maxPrice, maxListings } = settings.value;
 	if (price < minPrice || price > maxPrice) return fail("ERR_PRICE");
 	if (listings.countOf(character.id) >= maxListings) return fail("ERR_LIMIT");
 	if (listings.ofVehicle(vehicleId)) return fail("ERR_LISTED");
@@ -17004,7 +17011,11 @@ onClientCallback(EVENTS.list, {
 		price,
 		description
 	});
-	return listing ? (vehiclesApi.SaveVehicle(vehicleId, {
+	if (!listing) return fail("ERR_FAILED");
+	let still = drivenAtSellSpot(source, lotId, netId);
+	if (typeof still == "string" || still.vehicleId !== vehicleId) return await listings.discard(listing), fail(typeof still == "string" ? still : "ERR_FAILED");
+	let { entity } = still;
+	return vehiclesApi.SaveVehicle(vehicleId, {
 		engine: GetVehicleEngineHealth(entity),
 		body: GetVehicleBodyHealth(entity),
 		...fuelBag.get(entity) === void 0 ? {} : { fuel: fuelBag.get(entity) }
@@ -17016,8 +17027,8 @@ onClientCallback(EVENTS.list, {
 			price,
 			lot: lot.id
 		}
-	}), { ok: !0 }) : fail("ERR_FAILED");
-}), onClientCallback(EVENTS.buy, {
+	}), { ok: !0 };
+})), onClientCallback(EVENTS.buy, {
 	args: listingArgs,
 	lock: !0
 }, async (source, lotId, id) => {
@@ -17108,7 +17119,7 @@ onClientCallback(EVENTS.quote, { args }, (source, lotId, netId) => {
 }), onClientCallback(EVENTS.sellBack, {
 	args,
 	lock: !0
-}, (source, lotId, netId) => {
+}, (source, lotId, netId) => sellLock.run(source, fail("ERR_PENDING"), async () => {
 	let driven = drivenAtSellSpot(source, lotId, netId);
 	if (typeof driven == "string") return fail(driven);
 	let price = dealerPrice(driven);
@@ -17127,7 +17138,7 @@ onClientCallback(EVENTS.quote, { args }, (source, lotId, netId) => {
 		ok: !0,
 		price
 	}) : fail("ERR_FAILED");
-});
+}));
 // resource/server/index.ts
 const log = createLogger(ResourceName);
 aiLogChannels({

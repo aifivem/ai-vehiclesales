@@ -1,8 +1,16 @@
-import { isNear, online, vehicleNearPlayer } from "@aicore-fivem/lib/server";
+import {
+  isNear,
+  online,
+  SourceLock,
+  vehicleNearPlayer,
+} from "@aicore-fivem/lib/server";
 import type { CharacterInfo, OwnedVehicle } from "@aicore-fivem/shared";
 import type { Lot } from "common/sales";
 import { lots } from "./content";
 import { vehiclesApi } from "./vehicles";
+
+/** One sell-spot action (list or dealer sale) at a time per player. */
+export const sellLock = new SourceLock();
 
 /** Seats checked for other occupants (front passenger to the last seat of the biggest vehicles). */
 const SEATS = 15;

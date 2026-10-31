@@ -1,14 +1,12 @@
 import {
   aiLog,
   EntityState,
-  isNear,
   nearestVehicleAt,
   onClientCallback,
   online,
   resourceExport,
   stateNumber,
   vehicleKeys,
-  vehicleNearPlayer,
 } from "@aicore-fivem/lib/server";
 import {
   fail,
@@ -23,27 +21,29 @@ import { inLot } from "./browse";
 import { lots, settings } from "./content";
 import { listings } from "./listings";
 import { payouts } from "./payouts";
+import { drivenAtSellSpot } from "./sellSpot";
 import { characterOwner, deliver, HOLD, isHeld, vehiclesApi } from "./vehicles";
 
 const core = resourceExport("ai-core");
 const fuelBag = new EntityState(VEHICLE_BAGS.fuel, stateNumber);
-
-/** Seats checked for other occupants (front passenger to the last seat of the biggest vehicles). */
-const SEATS = 15;
-
-const onlyDriver = (vehicle: number, ped: number): boolean => {
-  for (let seat = 0; seat < SEATS; seat++) {
-    const rider = GetPedInVehicleSeat(vehicle, seat);
-    if (rider && rider !== ped) return false;
-  }
-  return true;
-};
 
 /** Takes the price from the panel's accounts in order; the account it came from, or null. */
 function charge(source: number, price: number, reason: string): string | null {
   for (const account of settings.value.accounts)
     if (core.RemoveMoney(source, account, price, reason)) return account;
   return null;
+}
+
+/** The lot's cut goes to the panel's job / gang account; without one it leaves the economy. */
+function payCommission(cut: number, plate: string): void {
+  const to = settings.value.commissionTo;
+  if (!to || cut <= 0) return;
+  const reason = `vehiclesales:commission:${plate}`;
+  if (!core.AddSharedMoney(to.owner, to.id, to.account, cut, reason))
+    aiLog("sales", `commission of $${cut} not paid: no account`, {
+      level: "warn",
+      metadata: { cut, plate, ...to },
+    });
 }
 
 const listingArgs = ([lotId, id]: unknown[]): [string, number] | null => {
@@ -71,23 +71,9 @@ onClientCallback(
     lock: true,
   },
   async (source, lotId, netId, price, description) => {
-    const lot = lots.get(lotId);
-    const character = online.character(source);
-    if (!lot || !character || !isNear(source, lot.sell, 8))
-      return fail("ERR_FAR");
-    const entity = vehicleNearPlayer(source, netId, { driver: true });
-    if (!entity) return fail("ERR_NOT_DRIVING");
-    if (!onlyDriver(entity, GetPlayerPed(String(source))))
-      return fail("ERR_OCCUPIED");
-    const vehicleId = vehiclesApi.GetVehicleIdByEntity(entity);
-    const vehicle =
-      vehicleId === null ? null : vehiclesApi.GetVehicle(vehicleId);
-    if (!vehicle || vehicleId === null) return fail("ERR_NOT_OWNED");
-    if (
-      vehicle.owner.type !== "character" ||
-      vehicle.owner.id !== String(character.id)
-    )
-      return fail("ERR_NOT_YOURS");
+    const driven = drivenAtSellSpot(source, lotId, netId);
+    if (typeof driven === "string") return fail(driven);
+    const { lot, character, entity, vehicleId, vehicle } = driven;
     const { minPrice, maxPrice, maxListings } = settings.value;
     if (price < minPrice || price > maxPrice) return fail("ERR_PRICE");
     if (listings.countOf(character.id) >= maxListings) return fail("ERR_LIMIT");
@@ -152,6 +138,7 @@ onClientCallback(
         core.AddMoney(source, account, listing.price, `${reason}:refund`);
         return fail("ERR_FAILED");
       }
+      payCommission(listing.price - payout, listing.plate);
       vehiclesApi.SetOwner(listing.vehicleId, characterOwner(character.id));
       const netId = await deliver(listing.vehicleId, lot, source, "purchase");
       const seller = core.GetSourceByCharId(listing.seller);

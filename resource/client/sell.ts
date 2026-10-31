@@ -2,16 +2,61 @@ import {
   cache,
   callAction,
   input,
+  menu,
   notify,
   vehicleLabel,
 } from "@aicore-fivem/lib/client";
-import { groupDigits, readInt } from "@aicore-fivem/lib/shared";
+import { groupDigits, num, readInt } from "@aicore-fivem/lib/shared";
 import { Locale } from "common";
 import { DESCRIPTION_MAX, EVENTS, payoutOf, type Lot } from "common/sales";
 import { settings } from "./content";
 
+/** The sell spot: list the vehicle, or (dealer on, model in the shop's catalog) sell it to the dealer at once. */
+export async function atSellSpot(lot: Lot): Promise<void> {
+  const vehicle = cache.vehicle;
+  if (vehicle === false || cache.seat !== -1) return;
+  const netId = NetworkGetNetworkIdFromEntity(vehicle);
+  const quote =
+    settings.value.dealerShare > 0
+      ? await callAction(EVENTS.quote, [lot.id, netId], {
+          fallback: "ERR_NO_DEALER",
+          silent: true,
+        })
+      : null;
+  const price = quote ? num(quote.price, 0) : 0;
+  if (price <= 0) return sell(lot);
+  const picked = await menu({
+    title: vehicleLabel(vehicle),
+    items: [
+      {
+        id: "list",
+        label: Locale("SELL_MENU_LIST"),
+        description: Locale("SELL_MENU_LIST_DESC"),
+        icon: "tag",
+      },
+      {
+        id: "dealer",
+        label: Locale("SELL_MENU_DEALER", groupDigits(price)),
+        description: Locale("SELL_MENU_DEALER_DESC"),
+        icon: "money-bill-wave",
+      },
+    ],
+  });
+  if (picked === "list") return sell(lot);
+  if (picked !== "dealer") return;
+  const reply = await callAction(EVENTS.sellBack, [lot.id, netId], {
+    fallback: "ERR_FAILED",
+  });
+  if (reply)
+    notify(
+      Locale("NOTIFY_SOLD_DEALER", groupDigits(num(reply.price, price))),
+      "success",
+      6000,
+    );
+}
+
 /** The sell spot: price and description in ai-core's input dialog, then the server lists the driven vehicle. */
-export async function sell(lot: Lot): Promise<void> {
+async function sell(lot: Lot): Promise<void> {
   const vehicle = cache.vehicle;
   if (vehicle === false || cache.seat !== -1) return;
   const s = settings.value;

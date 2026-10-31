@@ -13,6 +13,41 @@
       "minimum": 0,
       "maximum": 90
     },
+    "commissionTo": {
+      "description": "Lot's cut goes to: A job's or gang's shared account receives the cut of every sale. None: the money leaves the economy.",
+      "enum": [
+        "",
+        "job",
+        "gang"
+      ]
+    },
+    "commissionJob": {
+      "description": "Job",
+      "type": "string",
+      "minLength": 0,
+      "maxLength": 32,
+      "pattern": "^([a-z0-9_]{2,32})?$"
+    },
+    "commissionGang": {
+      "description": "Gang",
+      "type": "string",
+      "minLength": 0,
+      "maxLength": 32,
+      "pattern": "^([a-z0-9_]{2,32})?$"
+    },
+    "commissionAccount": {
+      "description": "Into its account: The job's or gang's shared account the cut is paid into.",
+      "type": "string",
+      "minLength": 2,
+      "maxLength": 32,
+      "pattern": "^[a-z0-9_]{2,32}$"
+    },
+    "dealerShare": {
+      "description": "Dealer pays: Part of the vehicle shop's catalog price paid into the seller's account. 0 turns the dealer off; vehicles missing from the catalog are never bought.",
+      "type": "number",
+      "minimum": 0,
+      "maximum": 100
+    },
     "minPrice": {
       "description": "Lowest price",
       "type": "integer",

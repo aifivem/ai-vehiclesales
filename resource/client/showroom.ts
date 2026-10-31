@@ -1,4 +1,4 @@
-import { requestModel } from "@aicore-fivem/lib/client";
+import { requestModel, ScriptCamera } from "@aicore-fivem/lib/client";
 import type { Look, Lot } from "common/sales";
 import { applyLook, standStill } from "./content";
 
@@ -13,7 +13,7 @@ interface Shown {
  * point. Nothing networked; the preview is cleared before anything spawns at the delivery spot (often the same place).
  */
 export class Showroom {
-  private camera = 0;
+  private readonly camera = new ScriptCamera();
   private vehicle = 0;
   private token = 0;
   private lot: Lot | null = null;
@@ -22,20 +22,11 @@ export class Showroom {
   start(lot: Lot): void {
     this.lot = lot;
     const c = lot.camera;
-    this.camera = CreateCamWithParams(
-      "DEFAULT_SCRIPTED_CAMERA",
-      c.x,
-      c.y,
-      c.z,
-      -8,
-      0,
-      c.heading,
-      50,
-      false,
-      0,
+    this.camera.start(
+      c,
+      { rotation: { x: -8, y: 0, z: c.heading }, fov: 50 },
+      500,
     );
-    SetCamActive(this.camera, true);
-    RenderScriptCams(true, true, 500, true, true);
   }
 
   async show(shown: Shown): Promise<void> {
@@ -67,11 +58,7 @@ export class Showroom {
 
   end(): void {
     this.clear();
-    if (this.camera) {
-      RenderScriptCams(false, true, 400, true, true);
-      DestroyCam(this.camera, false);
-      this.camera = 0;
-    }
+    this.camera.stop(400);
     this.lot = null;
   }
 }

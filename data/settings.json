@@ -1,6 +1,11 @@
 {
   "$schema": "./schemas/settings.schema.json",
   "commission": 10,
+  "commissionTo": "",
+  "commissionJob": "",
+  "commissionGang": "",
+  "commissionAccount": "bank",
+  "dealerShare": 50,
   "minPrice": 1000,
   "maxPrice": 10000000,
   "maxListings": 3,

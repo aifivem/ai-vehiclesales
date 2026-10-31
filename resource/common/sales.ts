@@ -31,6 +31,10 @@ export const EVENTS = {
   details: "ai-vehiclesales:details",
   /** Callback: (lotId, netId, price, description) -> { ok } list the vehicle the player drives. */
   list: "ai-vehiclesales:list",
+  /** Callback: (lotId, netId) -> { ok, price } what the dealer pays for the vehicle the player drives. */
+  quote: "ai-vehiclesales:quote",
+  /** Callback: (lotId, netId) -> { ok, price } sell the driven vehicle to the dealer; it is gone, the price paid. */
+  sellBack: "ai-vehiclesales:sellBack",
   /** Callback: (lotId, listingId) -> { ok, plate } buy it; it is delivered at the lot. */
   buy: "ai-vehiclesales:buy",
   /** Callback: (lotId, listingId) -> { ok } the seller takes the listing back; delivered at the lot. */
@@ -70,9 +74,20 @@ export interface Lot {
   blip: boolean;
 }
 
+/** A job's or gang's shared account that receives the lot's cut. */
+export interface CommissionTarget {
+  owner: "job" | "gang";
+  id: string;
+  account: string;
+}
+
 export interface Settings {
   /** Percent of the price the lot keeps. */
   commission: number;
+  /** Where the lot's cut goes; null: nowhere (a money sink). */
+  commissionTo: CommissionTarget | null;
+  /** Percent of the vehicle shop's catalog price the dealer pays for an owned vehicle (0 = the dealer buys nothing). */
+  dealerShare: number;
   minPrice: number;
   maxPrice: number;
   /** Listings one character may have at once (all lots). */
@@ -116,12 +131,24 @@ export function readLot(id: string, v: Record<string, unknown>): Lot {
   };
 }
 
+/** The cut's target from the panel; an owner without a picked job / gang is none. */
+function readCommissionTo(v: Record<string, unknown>): CommissionTarget | null {
+  const owner = v.commissionTo;
+  if (owner !== "job" && owner !== "gang") return null;
+  const id = str(owner === "job" ? v.commissionJob : v.commissionGang, "", 32);
+  return id === ""
+    ? null
+    : { owner, id, account: str(v.commissionAccount, "bank", 32) || "bank" };
+}
+
 export function readSettings(raw: unknown): Settings {
   const v = record(raw);
   const accounts = names(v.accounts);
   const minPrice = int(v.minPrice, 1000, 1, 100_000_000);
   return {
     commission: num(v.commission, 10, 0, 90),
+    commissionTo: readCommissionTo(v),
+    dealerShare: num(v.dealerShare, 50, 0, 100),
     minPrice,
     maxPrice: Math.max(minPrice, int(v.maxPrice, 10_000_000, 1, 100_000_000)),
     maxListings: int(v.maxListings, 3, 1, 50),
@@ -132,6 +159,10 @@ export function readSettings(raw: unknown): Settings {
     blip: readBlipStyle(v.blip, { sprite: 326, color: 3, scale: 0.75 }),
   };
 }
+
+/** What the dealer pays for a vehicle of a catalog price. */
+export const dealerPriceOf = (catalogPrice: number, share: number): number =>
+  Math.floor((catalogPrice * share) / 100);
 
 /** What the seller receives for a price. */
 export const payoutOf = (price: number, commission: number): number =>

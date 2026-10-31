@@ -92,8 +92,8 @@ function groupDigits(value, separator = ",") {
 function stripGameText(text) {
 	return text == null ? "" : String(text).replace(/<[^>]*>/g, "").replace(/~[\w]+~/g, "").replace(/&nbsp;/g, " ").replace(/\s\s+/g, " ").trim();
 }
-// ../../../packages/lib/src/shared/blipStyle.ts
-const BLIP_STYLE_FIELDS = {
+// ../../../packages/lib/src/shared/access.ts
+const isPublic = (rule) => rule.jobs.length === 0 && rule.gangs.length === 0, BLIP_STYLE_FIELDS = {
 	sprite: {
 		type: "number",
 		min: 0,
@@ -457,6 +457,7 @@ const CORE = {
 }, ADMIN = {
 	ace: "ai.admin",
 	openCallback: "ai-core:admin:open",
+	panelDataCallback: "ai-core:admin:panelData",
 	applyCallback: "ai-core:admin:apply",
 	closeEvent: "ai-core:admin:close",
 	showEvent: "ai-core:admin:show",
@@ -645,7 +646,7 @@ function toPatch(value) {
 		default: return null;
 	}
 }
-const clone = (value) => value === void 0 ? value : JSON.parse(JSON.stringify(value)), core$17 = resourceExport(CORE.resource), ERR = {
+const clone = (value) => value === void 0 ? value : JSON.parse(JSON.stringify(value)), core$19 = resourceExport(CORE.resource), ERR = {
 	type: "ADMIN_ERR_TYPE",
 	range: "ADMIN_ERR_RANGE",
 	length: "ADMIN_ERR_LENGTH",
@@ -659,7 +660,7 @@ const clone = (value) => value === void 0 ? value : JSON.parse(JSON.stringify(va
 		if (cached && Date.now() - cached.at < 2e3) return cached.values.size > 0 ? cached.values : null;
 		let list = [];
 		try {
-			list = core$17.GetLookupValues(source);
+			list = core$19.GetLookupValues(source);
 		} catch {}
 		let values = new Set(Array.isArray(list) ? list.filter((v) => typeof v == "string") : []);
 		return this.lists.set(source, {
@@ -924,7 +925,7 @@ function writeSchema(resource, name, text, log) {
 	(0, node_fs_promises.mkdir)(dir, { recursive: !0 }).then(() => (0, node_fs_promises.writeFile)(`${dir}/${name}.schema.json`, text, "utf8")).catch((error) => log.error(`writing ${resource}/${path} failed`, error));
 }
 // ../../../packages/lib/src/server/admin/panel.ts
-const core$16 = resourceExport(CORE.resource);
+const core$18 = resourceExport(CORE.resource);
 var AdminPanel = class {
 	schema;
 	data = new Map();
@@ -940,10 +941,10 @@ var AdminPanel = class {
 	constructor(schema) {
 		this.schema = schema;
 		for (let [name, spec] of Object.entries(schema.files)) this.load(name, spec);
-		registerExport("AdminPanelSnapshot", () => this.snapshot()), registerExport("AdminPanelApply", (admin, patch) => this.apply(admin, patch)), onClientCallback(ADMIN.worldChangesCallback(this.resource), () => Object.fromEntries(this.worldChanges), { rate: {
+		registerExport("AdminPanelSnapshot", () => this.snapshot()), registerExport("AdminPanelSummary", () => this.summary()), registerExport("AdminPanelApply", (admin, patch) => this.apply(admin, patch)), onClientCallback(ADMIN.worldChangesCallback(this.resource), () => Object.fromEntries(this.worldChanges), { rate: {
 			count: 4,
 			windowMs: 1e4
-		} }), setImmediate(() => core$16.RegisterAdminPanel(this.resource));
+		} }), setImmediate(() => core$18.RegisterAdminPanel(this.resource));
 	}
 	get(file) {
 		return this.data.get(file) ?? {};
@@ -969,6 +970,27 @@ var AdminPanel = class {
 			schema: this.schema,
 			texts: loadLocaleTexts(),
 			data: clone(Object.fromEntries(this.data))
+		};
+	}
+	summary() {
+		let data = {}, index = {};
+		for (let [file, spec] of Object.entries(this.schema.files)) {
+			let content = this.data.get(file);
+			if (spec.kind !== "records") {
+				data[file] = clone(content ?? {});
+				continue;
+			}
+			let labels = {};
+			for (let [key, record] of Object.entries(content ?? {})) labels[key] = labelOf(record, spec.labelPath) ?? key;
+			index[file] = labels;
+		}
+		return {
+			resource: this.resource,
+			schema: this.schema,
+			texts: loadLocaleTexts(),
+			data,
+			loaded: !1,
+			index
 		};
 	}
 	apply(admin, raw) {
@@ -1033,7 +1055,7 @@ var AdminPanel = class {
 		let spec = this.schema.files[file], data = this.get(file), value = key === void 0 ? data : data[key] ?? null;
 		this.dataFiles.get(file)?.write(data), this.views.changed(file, key, value);
 		for (let handler of this.handlers.get(file) ?? []) handler(key, value);
-		if (core$16.AdminPanelChanged({
+		if (core$18.AdminPanelChanged({
 			resource: this.resource,
 			file,
 			key,
@@ -1054,6 +1076,15 @@ var AdminPanel = class {
 		this.data.set(name, data), (filled || raw === null || !file.hasSchemaRef()) && file.write(data);
 	}
 };
+function labelOf(record, path) {
+	if (!path) return null;
+	let at = record;
+	for (let part of path.split(".")) {
+		if (typeof at != "object" || !at) return null;
+		at = at[part];
+	}
+	return typeof at == "string" && at !== "" ? at : null;
+}
 // ../../../packages/lib/src/server/log.ts
 function aiLog(channel, message, options) {
 	optionalExport("ai-core")?.Log(channel, message, options);
@@ -1072,7 +1103,7 @@ function notify(source, text, kind = "info", duration) {
 }
 resourceExport(CORE.resource);
 // ../../../packages/lib/src/server/online.ts
-const core$14 = resourceExport(CORE.resource);
+const core$16 = resourceExport(CORE.resource);
 function reindex(index, source, before, after) {
 	for (let name of before) {
 		let set = index.get(name);
@@ -1100,11 +1131,11 @@ var OnlinePlayers = class {
 				gangs: [],
 				gangNames: [],
 				duty: null
-			}), this.setJobs(source, core$14.GetJobs(source) ?? []), this.setGangs(source, core$14.GetGangs(source) ?? []), this.setDuty(source, core$14.GetDutyJob(source));
+			}), this.setJobs(source, core$16.GetJobs(source) ?? []), this.setGangs(source, core$16.GetGangs(source) ?? []), this.setDuty(source, core$16.GetDutyJob(source));
 		};
 		on(CORE.playerLoadedEvent, load), on(CORE.playerUnloadedEvent, (source) => this.drop(source)), on(CORE.jobsChangedEvent, (source, jobs) => this.setJobs(source, jobs)), on(CORE.gangsChangedEvent, (source, gangs) => this.setGangs(source, gangs)), on(CORE.dutyChangedEvent, (source, job) => this.setDuty(source, job));
-		for (let source of core$14.GetLoadedSources()) {
-			let character = core$14.GetCharacter(source);
+		for (let source of core$16.GetLoadedSources()) {
+			let character = core$16.GetCharacter(source);
 			character && load(source, character);
 		}
 	}
@@ -1173,6 +1204,20 @@ var OnlinePlayers = class {
 		let duty = this.dutyJob(source);
 		return duty !== null && jobs.includes(duty);
 	}
+	allows(source, rule) {
+		if (isPublic(rule)) return !0;
+		let min = (name) => rule.grades[name] ?? 0;
+		for (let gang of rule.gangs) {
+			let grade = this.gangGrade(source, gang);
+			if (grade !== null && grade >= min(gang)) return !0;
+		}
+		let duty = rule.onDuty ? this.dutyJob(source) : null;
+		for (let job of rule.jobs) {
+			let grade = this.jobGrade(source, job);
+			if (grade !== null && grade >= min(job) && (!rule.onDuty || duty === job)) return !0;
+		}
+		return !1;
+	}
 	countOnDuty(jobs) {
 		this.start();
 		let count = 0;
@@ -1183,10 +1228,10 @@ var OnlinePlayers = class {
 		return this.start(), this.onDuty.get(job) ?? EMPTY;
 	}
 };
-const EMPTY = new Set(), online = new OnlinePlayers(), core$13 = resourceExport(CORE.resource), vehicleKeys = {
-	give: (source, vehicle, purpose = "temporary") => core$13.GiveVehicleKeys(source, vehicle, purpose),
-	remove: (source, vehicle) => core$13.RemoveVehicleKeys(source, vehicle),
-	has: (source, vehicle) => core$13.HasVehicleKeys(source, vehicle)
+const EMPTY = new Set(), online = new OnlinePlayers(), core$15 = resourceExport(CORE.resource), vehicleKeys = {
+	give: (source, vehicle, purpose = "temporary") => core$15.GiveVehicleKeys(source, vehicle, purpose),
+	remove: (source, vehicle) => core$15.RemoveVehicleKeys(source, vehicle),
+	has: (source, vehicle) => core$15.HasVehicleKeys(source, vehicle)
 }, TYPES = new Set([
 	"automobile",
 	"bike",
@@ -1346,6 +1391,25 @@ on(CORE.playerUnloadedEvent, (source) => {
 	let settle = running.get(source);
 	settle && settle(!1);
 });
+// ../../../packages/lib/src/server/definitions.ts
+const core$13 = resourceExport("ai-core");
+new class {
+	jobs = new Map();
+	gangs = new Map();
+	constructor() {
+		on(CORE.definitionsChangedEvent, (file, name) => {
+			typeof name == "string" && (file === "jobs" ? this.jobs.delete(name) : file === "gangs" && this.gangs.delete(name));
+		});
+	}
+	job(name) {
+		let def = this.jobs.get(name);
+		return def === void 0 && this.jobs.set(name, def = core$13.GetJobDefinition(name) ?? null), def;
+	}
+	gang(name) {
+		let def = this.gangs.get(name);
+		return def === void 0 && this.gangs.set(name, def = core$13.GetGangDefinition(name) ?? null), def;
+	}
+}();
 // ../../../packages/lib/src/server/command.ts
 const resource$3 = GetCurrentResourceName();
 createLogger(resource$3), new class {
@@ -15911,13 +15975,13 @@ var Mirror = class {
 };
 resourceExport(CORE.resource), resourceExport(CORE.resource);
 // ../../../packages/lib/src/server/phone.ts
-const core$9 = resourceExport(CORE.resource), phone = {
-	number: (source) => core$9.GetPhoneNumber(source),
-	sourceOf: (number) => core$9.GetSourceByPhone(number),
-	hasPhone: (source) => core$9.HasPhone(source),
-	mail: (to, mail) => core$9.SendPhoneMail(to, mail),
-	message: (from, to, text) => core$9.SendPhoneMessage(from, to, text),
-	notify: (source, notification) => core$9.PhoneNotify(source, notification)
+const core$10 = resourceExport(CORE.resource), phone = {
+	number: (source) => core$10.GetPhoneNumber(source),
+	sourceOf: (number) => core$10.GetSourceByPhone(number),
+	hasPhone: (source) => core$10.HasPhone(source),
+	mail: (to, mail) => core$10.SendPhoneMail(to, mail),
+	message: (from, to, text) => core$10.SendPhoneMessage(from, to, text),
+	notify: (source, notification) => core$10.PhoneNotify(source, notification)
 };
 resourceExport(CORE.resource), resourceExport(CORE.resource), resourceExport(CORE.resource), resourceExport(CORE.resource), resourceExport(CORE.resource), resourceExport(CORE.resource), resourceExport(CORE.resource);
 // resource/common/locale.ts
@@ -15933,6 +15997,8 @@ const EVENTS = {
 	listings: "ai-vehiclesales:listings",
 	details: "ai-vehiclesales:details",
 	list: "ai-vehiclesales:list",
+	quote: "ai-vehiclesales:quote",
+	sellBack: "ai-vehiclesales:sellBack",
 	buy: "ai-vehiclesales:buy",
 	takeBack: "ai-vehiclesales:takeBack",
 	testDrive: "ai-vehiclesales:testDrive",
@@ -15967,10 +16033,22 @@ function readLot(id, v) {
 		blip: bool(v.blip, !0)
 	};
 }
+function readCommissionTo(v) {
+	let owner = v.commissionTo;
+	if (owner !== "job" && owner !== "gang") return null;
+	let id = str(owner === "job" ? v.commissionJob : v.commissionGang, "", 32);
+	return id === "" ? null : {
+		owner,
+		id,
+		account: str(v.commissionAccount, "bank", 32) || "bank"
+	};
+}
 function readSettings(raw) {
 	let v = record(raw), accounts = names(v.accounts), minPrice = int(v.minPrice, 1e3, 1, 1e8);
 	return {
 		commission: num(v.commission, 10, 0, 90),
+		commissionTo: readCommissionTo(v),
+		dealerShare: num(v.dealerShare, 50, 0, 100),
 		minPrice,
 		maxPrice: Math.max(minPrice, int(v.maxPrice, 1e7, 1, 1e8)),
 		maxListings: int(v.maxListings, 3, 1, 50),
@@ -15985,7 +16063,19 @@ function readSettings(raw) {
 		})
 	};
 }
-const payoutOf = (price, commission) => price - Math.floor(price * commission / 100), panel = new AdminPanel({
+const dealerPriceOf = (catalogPrice, share) => Math.floor(catalogPrice * share / 100), payoutOf = (price, commission) => price - Math.floor(price * commission / 100), account = {
+	type: "text",
+	lookup: "account",
+	min: 2,
+	max: 32,
+	pattern: "^[a-z0-9_]{2,32}$"
+}, optionalGroup = (lookup) => ({
+	type: "text",
+	lookup,
+	min: 0,
+	max: 32,
+	pattern: "^([a-z0-9_]{2,32})?$"
+}), panel = new AdminPanel({
 	title: "ADMIN_TITLE",
 	icon: "car",
 	files: {
@@ -15997,6 +16087,22 @@ const payoutOf = (price, commission) => price - Math.floor(price * commission / 
 					type: "number",
 					min: 0,
 					max: 90
+				},
+				commissionTo: {
+					type: "enum",
+					values: [
+						"",
+						"job",
+						"gang"
+					]
+				},
+				commissionJob: optionalGroup("job"),
+				commissionGang: optionalGroup("gang"),
+				commissionAccount: account,
+				dealerShare: {
+					type: "number",
+					min: 0,
+					max: 100
 				},
 				minPrice: {
 					type: "number",
@@ -16035,13 +16141,7 @@ const payoutOf = (price, commission) => price - Math.floor(price * commission / 
 					itemMax: 32,
 					pattern: "^[a-z0-9_]{2,32}$"
 				},
-				payoutAccount: {
-					type: "text",
-					lookup: "account",
-					min: 2,
-					max: 32,
-					pattern: "^[a-z0-9_]{2,32}$"
-				},
+				payoutAccount: account,
 				blip: {
 					type: "object",
 					optional: !0,
@@ -16050,6 +16150,11 @@ const payoutOf = (price, commission) => price - Math.floor(price * commission / 
 			},
 			defaults: {
 				commission: 10,
+				commissionTo: "",
+				commissionJob: "",
+				commissionGang: "",
+				commissionAccount: "bank",
+				dealerShare: 50,
 				minPrice: 1e3,
 				maxPrice: 1e7,
 				maxListings: 3,
@@ -16278,6 +16383,60 @@ const payoutOf = (price, commission) => price - Math.floor(price * commission / 
 						unit: "%"
 					},
 					{
+						widget: "select",
+						path: "commissionTo",
+						label: "ADMIN_F_COMMISSION_TO",
+						hint: "ADMIN_H_COMMISSION_TO",
+						options: [
+							{
+								value: "",
+								label: "ADMIN_O_COMMISSION_NONE"
+							},
+							{
+								value: "job",
+								label: "ADMIN_O_COMMISSION_JOB"
+							},
+							{
+								value: "gang",
+								label: "ADMIN_O_COMMISSION_GANG"
+							}
+						]
+					},
+					{
+						widget: "text",
+						lookup: "job",
+						path: "commissionJob",
+						label: "ADMIN_F_COMMISSION_JOB",
+						placeholder: "ADMIN_P_COMMISSION_JOB",
+						showIf: {
+							path: "commissionTo",
+							values: ["job"]
+						}
+					},
+					{
+						widget: "text",
+						lookup: "gang",
+						path: "commissionGang",
+						label: "ADMIN_F_COMMISSION_GANG",
+						placeholder: "ADMIN_P_COMMISSION_GANG",
+						showIf: {
+							path: "commissionTo",
+							values: ["gang"]
+						}
+					},
+					{
+						widget: "text",
+						lookup: "account",
+						path: "commissionAccount",
+						label: "ADMIN_F_COMMISSION_ACCOUNT",
+						hint: "ADMIN_H_COMMISSION_ACCOUNT",
+						placeholder: "ADMIN_P_ACCOUNT",
+						showIf: {
+							path: "commissionTo",
+							values: ["job", "gang"]
+						}
+					},
+					{
 						widget: "number",
 						path: "minPrice",
 						label: "ADMIN_F_MIN_PRICE",
@@ -16304,6 +16463,20 @@ const payoutOf = (price, commission) => price - Math.floor(price * commission / 
 						max: 50
 					}
 				]
+			},
+			{
+				icon: "wallet",
+				title: "ADMIN_C_DEALER",
+				desc: "ADMIN_C_DEALER_DESC",
+				fields: [{
+					widget: "number",
+					path: "dealerShare",
+					label: "ADMIN_F_DEALER_SHARE",
+					hint: "ADMIN_H_DEALER_SHARE",
+					min: 0,
+					max: 100,
+					unit: "%"
+				}]
 			},
 			{
 				icon: "money-bill-wave",
@@ -16671,7 +16844,7 @@ onClientCallback(EVENTS.watch, {
 	};
 });
 // resource/server/payouts.ts
-const core$1 = resourceExport("ai-core"), log$1 = createLogger(ResourceName), payouts = new class {
+const core$2 = resourceExport("ai-core"), log$1 = createLogger(ResourceName), payouts = new class {
 	claiming = new Set();
 	async claim(source, charId) {
 		if (!this.claiming.has(charId)) {
@@ -16694,7 +16867,7 @@ const core$1 = resourceExport("ai-core"), log$1 = createLogger(ResourceName), pa
 		], { seller: charId });
 		if (rows.length === 0 || await mysql.update("DELETE FROM ai_vehiclesales_payouts WHERE id IN (?)", [rows.map((r) => r.id)]) !== rows.length) return;
 		let total = rows.reduce((sum, r) => sum + r.amount, 0), account = settings.value.payoutAccount;
-		core$1.AddMoney(source, account, total, "vehiclesales:payout") ? (notify(source, Locale("NOTIFY_PAID", groupDigits(total)), "success", 8e3), phone.mail(source, {
+		core$2.AddMoney(source, account, total, "vehiclesales:payout") ? (notify(source, Locale("NOTIFY_PAID", groupDigits(total)), "success", 8e3), phone.mail(source, {
 			sender: Locale("MAIL_SENDER"),
 			subject: Locale("MAIL_SUBJECT"),
 			message: rows.map((r) => Locale("MAIL_LINE", r.plate, groupDigits(r.amount))).join("\n")
@@ -16758,16 +16931,46 @@ const core$1 = resourceExport("ai-core"), log$1 = createLogger(ResourceName), pa
 	stopAll() {
 		for (let drive of this.drives.values()) this.clear(drive);
 	}
-}(), core = resourceExport("ai-core"), fuelBag = new EntityState(VEHICLE_BAGS.fuel, stateNumber), onlyDriver = (vehicle, ped) => {
+}(), onlyDriver = (vehicle, ped) => {
 	for (let seat = 0; seat < 15; seat++) {
 		let rider = GetPedInVehicleSeat(vehicle, seat);
 		if (rider && rider !== ped) return !1;
 	}
 	return !0;
 };
+function drivenAtSellSpot(source, lotId, netId) {
+	let lot = lots.get(lotId), character = online.character(source);
+	if (!lot || !character || !isNear(source, lot.sell, 8)) return "ERR_FAR";
+	let entity = vehicleNearPlayer(source, netId, { driver: !0 });
+	if (!entity) return "ERR_NOT_DRIVING";
+	if (!onlyDriver(entity, GetPlayerPed(String(source)))) return "ERR_OCCUPIED";
+	let vehicleId = vehiclesApi.GetVehicleIdByEntity(entity), vehicle = vehicleId === null ? null : vehiclesApi.GetVehicle(vehicleId);
+	return !vehicle || vehicleId === null ? "ERR_NOT_OWNED" : vehicle.owner.type !== "character" || vehicle.owner.id !== String(character.id) ? "ERR_NOT_YOURS" : {
+		lot,
+		character,
+		entity,
+		vehicleId,
+		vehicle
+	};
+}
+// resource/server/actions.ts
+const core$1 = resourceExport("ai-core"), fuelBag = new EntityState(VEHICLE_BAGS.fuel, stateNumber);
 function charge(source, price, reason) {
-	for (let account of settings.value.accounts) if (core.RemoveMoney(source, account, price, reason)) return account;
+	for (let account of settings.value.accounts) if (core$1.RemoveMoney(source, account, price, reason)) return account;
 	return null;
+}
+function payCommission(cut, plate) {
+	let to = settings.value.commissionTo;
+	if (!to || cut <= 0) return;
+	let reason = `vehiclesales:commission:${plate}`;
+	core$1.AddSharedMoney(to.owner, to.id, to.account, cut, reason) || aiLog("sales", `commission of $${cut} not paid: no account`, {
+		level: "warn",
+		metadata: {
+			cut,
+			plate,
+			...to
+		}
+	});
 }
 const listingArgs = ([lotId, id]) => {
 	let lot = readText(lotId, 48), listing = readId(id);
@@ -16785,15 +16988,9 @@ onClientCallback(EVENTS.list, {
 	},
 	lock: !0
 }, async (source, lotId, netId, price, description) => {
-	let lot = lots.get(lotId), character = online.character(source);
-	if (!lot || !character || !isNear(source, lot.sell, 8)) return fail("ERR_FAR");
-	let entity = vehicleNearPlayer(source, netId, { driver: !0 });
-	if (!entity) return fail("ERR_NOT_DRIVING");
-	if (!onlyDriver(entity, GetPlayerPed(String(source)))) return fail("ERR_OCCUPIED");
-	let vehicleId = vehiclesApi.GetVehicleIdByEntity(entity), vehicle = vehicleId === null ? null : vehiclesApi.GetVehicle(vehicleId);
-	if (!vehicle || vehicleId === null) return fail("ERR_NOT_OWNED");
-	if (vehicle.owner.type !== "character" || vehicle.owner.id !== String(character.id)) return fail("ERR_NOT_YOURS");
-	let { minPrice, maxPrice, maxListings } = settings.value;
+	let driven = drivenAtSellSpot(source, lotId, netId);
+	if (typeof driven == "string") return fail(driven);
+	let { lot, character, entity, vehicleId, vehicle } = driven, { minPrice, maxPrice, maxListings } = settings.value;
 	if (price < minPrice || price > maxPrice) return fail("ERR_PRICE");
 	if (listings.countOf(character.id) >= maxListings) return fail("ERR_LIMIT");
 	if (listings.ofVehicle(vehicleId)) return fail("ERR_LISTED");
@@ -16835,9 +17032,9 @@ onClientCallback(EVENTS.list, {
 		let reason = `vehiclesales:buy:${listing.plate}`, account = charge(source, listing.price, reason);
 		if (account === null) return fail("ERR_MONEY");
 		let payout = payoutOf(listing.price, settings.value.commission);
-		if (!await listings.sell(listing, payout)) return core.AddMoney(source, account, listing.price, `${reason}:refund`), fail("ERR_FAILED");
-		vehiclesApi.SetOwner(listing.vehicleId, characterOwner(character.id));
-		let netId = await deliver(listing.vehicleId, lot, source, "purchase"), seller = core.GetSourceByCharId(listing.seller);
+		if (!await listings.sell(listing, payout)) return core$1.AddMoney(source, account, listing.price, `${reason}:refund`), fail("ERR_FAILED");
+		payCommission(listing.price - payout, listing.plate), vehiclesApi.SetOwner(listing.vehicleId, characterOwner(character.id));
+		let netId = await deliver(listing.vehicleId, lot, source, "purchase"), seller = core$1.GetSourceByCharId(listing.seller);
 		return seller !== null && payouts.claim(seller, listing.seller), aiLog("sales", `bought ${listing.plate} for $${listing.price} (seller gets $${payout})`, {
 			source,
 			metadata: {
@@ -16885,6 +17082,51 @@ onClientCallback(EVENTS.list, {
 	} finally {
 		listings.release(listing.id);
 	}
+});
+// resource/server/dealer.ts
+const core = resourceExport("ai-core");
+function catalogPrice(model) {
+	let price = optionalExport("ai-vehicleshop")?.GetCatalogPrice(model);
+	return typeof price == "number" && Number.isFinite(price) && price > 0 ? price : null;
+}
+function dealerPrice(driven) {
+	let share = settings.value.dealerShare, catalog = share > 0 ? catalogPrice(driven.vehicle.model) : null, price = catalog === null ? 0 : dealerPriceOf(catalog, share);
+	return price <= 0 ? "ERR_NO_DEALER" : listings.ofVehicle(driven.vehicleId) ? "ERR_LISTED" : price;
+}
+const args = ([lotId, netId]) => {
+	let lot = readText(lotId, 48), net = readId(netId);
+	return lot === null || net === null ? null : [lot, net];
+};
+onClientCallback(EVENTS.quote, { args }, (source, lotId, netId) => {
+	let driven = drivenAtSellSpot(source, lotId, netId);
+	if (typeof driven == "string") return fail(driven);
+	let price = dealerPrice(driven);
+	return typeof price == "string" ? fail(price) : {
+		ok: !0,
+		price
+	};
+}), onClientCallback(EVENTS.sellBack, {
+	args,
+	lock: !0
+}, (source, lotId, netId) => {
+	let driven = drivenAtSellSpot(source, lotId, netId);
+	if (typeof driven == "string") return fail(driven);
+	let price = dealerPrice(driven);
+	if (typeof price == "string") return fail(price);
+	let { vehicle, vehicleId, entity, lot } = driven, account = settings.value.payoutAccount;
+	return core.AddMoney(source, account, price, `vehiclesales:dealer:${vehicle.plate}`) ? (vehicleKeys.remove(source, vehicle.plate), vehiclesApi.DeleteVehicle(vehicleId), DoesEntityExist(entity) && DeleteEntity(entity), aiLog("sales", `sold ${vehicle.plate} to the dealer for $${price}`, {
+		source,
+		metadata: {
+			plate: vehicle.plate,
+			model: vehicle.model,
+			price,
+			account,
+			lot: lot.id
+		}
+	}), {
+		ok: !0,
+		price
+	}) : fail("ERR_FAILED");
 });
 // resource/server/index.ts
 const log = createLogger(ResourceName);

@@ -14,6 +14,7 @@ import { listings } from "./listings";
 import { payouts } from "./payouts";
 import { testDrives } from "./testDrive";
 import "./actions";
+import "./dealer";
 
 const log = createLogger(ResourceName);
 aiLogChannels({ listings: {}, sales: {} });

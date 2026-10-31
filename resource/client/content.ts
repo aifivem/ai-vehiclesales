@@ -4,12 +4,11 @@ import {
   setVehicleSetup,
 } from "@aicore-fivem/lib/client";
 import { toVehicleProps, toVehicleSetup } from "@aicore-fivem/lib/shared";
-import { readLot, readSettings, type Look } from "common/sales";
+import { readSettings, type Look } from "common/sales";
 
 /** The panel's world files on this client. */
 export const world = new AdminWorld(["settings", "lots"]);
 export const settings = world.view("settings", readSettings);
-export const lots = world.records("lots", readLot);
 
 /** Dresses a local vehicle in a listing's look: stored props, else the spawn setup; the listing's plate either way. */
 export function applyLook(vehicle: number, look: Look, plate: string): void {

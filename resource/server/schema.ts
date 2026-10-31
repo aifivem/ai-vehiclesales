@@ -13,6 +13,16 @@ const account = {
   pattern: "^[a-z0-9_]{2,32}$",
 } as const;
 
+/** A job or gang name that may stay empty (none picked yet). */
+const optionalGroup = (lookup: "job" | "gang") =>
+  ({
+    type: "text",
+    lookup,
+    min: 0,
+    max: 32,
+    pattern: "^([a-z0-9_]{2,32})?$",
+  }) as const;
+
 /** ai-vehiclesales' panel: used car lots (counter, sell spot, parking spots, preview) and the sale rules. */
 export const salesSchema: PanelSchema = {
   title: "ADMIN_TITLE",
@@ -23,6 +33,11 @@ export const salesSchema: PanelSchema = {
       sync: "all",
       sections: {
         commission: { type: "number", min: 0, max: 90 },
+        commissionTo: { type: "enum", values: ["", "job", "gang"] },
+        commissionJob: optionalGroup("job"),
+        commissionGang: optionalGroup("gang"),
+        commissionAccount: account,
+        dealerShare: { type: "number", min: 0, max: 100 },
         minPrice: { type: "number", min: 1, max: 100_000_000, integer: true },
         maxPrice: { type: "number", min: 1, max: 100_000_000, integer: true },
         maxListings: { type: "number", min: 1, max: 50, integer: true },
@@ -50,6 +65,11 @@ export const salesSchema: PanelSchema = {
       },
       defaults: {
         commission: 10,
+        commissionTo: "",
+        commissionJob: "",
+        commissionGang: "",
+        commissionAccount: "bank",
+        dealerShare: 50,
         minPrice: 1000,
         maxPrice: 10_000_000,
         maxListings: 3,
@@ -237,6 +257,42 @@ export const salesSchema: PanelSchema = {
               unit: "%",
             },
             {
+              widget: "select",
+              path: "commissionTo",
+              label: "ADMIN_F_COMMISSION_TO",
+              hint: "ADMIN_H_COMMISSION_TO",
+              options: [
+                { value: "", label: "ADMIN_O_COMMISSION_NONE" },
+                { value: "job", label: "ADMIN_O_COMMISSION_JOB" },
+                { value: "gang", label: "ADMIN_O_COMMISSION_GANG" },
+              ],
+            },
+            {
+              widget: "text",
+              lookup: "job",
+              path: "commissionJob",
+              label: "ADMIN_F_COMMISSION_JOB",
+              placeholder: "ADMIN_P_COMMISSION_JOB",
+              showIf: { path: "commissionTo", values: ["job"] },
+            },
+            {
+              widget: "text",
+              lookup: "gang",
+              path: "commissionGang",
+              label: "ADMIN_F_COMMISSION_GANG",
+              placeholder: "ADMIN_P_COMMISSION_GANG",
+              showIf: { path: "commissionTo", values: ["gang"] },
+            },
+            {
+              widget: "text",
+              lookup: "account",
+              path: "commissionAccount",
+              label: "ADMIN_F_COMMISSION_ACCOUNT",
+              hint: "ADMIN_H_COMMISSION_ACCOUNT",
+              placeholder: "ADMIN_P_ACCOUNT",
+              showIf: { path: "commissionTo", values: ["job", "gang"] },
+            },
+            {
               widget: "number",
               path: "minPrice",
               label: "ADMIN_F_MIN_PRICE",
@@ -261,6 +317,22 @@ export const salesSchema: PanelSchema = {
               hint: "ADMIN_H_MAX_LISTINGS",
               min: 1,
               max: 50,
+            },
+          ],
+        },
+        {
+          icon: "wallet",
+          title: "ADMIN_C_DEALER",
+          desc: "ADMIN_C_DEALER_DESC",
+          fields: [
+            {
+              widget: "number",
+              path: "dealerShare",
+              label: "ADMIN_F_DEALER_SHARE",
+              hint: "ADMIN_H_DEALER_SHARE",
+              min: 0,
+              max: 100,
+              unit: "%",
             },
           ],
         },

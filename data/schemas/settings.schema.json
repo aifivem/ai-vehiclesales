@@ -1,0 +1,92 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "ai-vehiclesales/data/settings.json",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "This file's JSON Schema (for editors)."
+    },
+    "commission": {
+      "description": "Lot's cut: Part of the price that stays with the lot; the seller gets the rest.",
+      "type": "number",
+      "minimum": 0,
+      "maximum": 90
+    },
+    "minPrice": {
+      "description": "Lowest price",
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 100000000
+    },
+    "maxPrice": {
+      "description": "Highest price",
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 100000000
+    },
+    "maxListings": {
+      "description": "Listings per character: How many vehicles one character may have for sale at once, over every lot.",
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 50
+    },
+    "testDriveSeconds": {
+      "description": "Length",
+      "type": "integer",
+      "minimum": 10,
+      "maximum": 600
+    },
+    "testDriveCooldown": {
+      "description": "Wait between drives: Seconds one character waits before the next test drive (0 = none).",
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 3600
+    },
+    "accounts": {
+      "description": "Buyer pays from: Tried in this order until one has enough money.",
+      "type": "array",
+      "maxItems": 5,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "maxLength": 32,
+        "pattern": "^[a-z0-9_]{2,32}$"
+      }
+    },
+    "payoutAccount": {
+      "description": "Seller is paid into: Paid when the vehicle sells, or at the seller's next login when offline.",
+      "type": "string",
+      "minLength": 2,
+      "maxLength": 32,
+      "pattern": "^[a-z0-9_]{2,32}$"
+    },
+    "blip": {
+      "description": "Lot",
+      "type": "object",
+      "properties": {
+        "sprite": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1000
+        },
+        "color": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "scale": {
+          "type": "number",
+          "minimum": 0.3,
+          "maximum": 2
+        }
+      },
+      "required": [
+        "sprite",
+        "color",
+        "scale"
+      ]
+    }
+  },
+  "required": []
+}

@@ -1,0 +1,14 @@
+{
+  "$schema": "./schemas/settings.schema.json",
+  "commission": 10,
+  "minPrice": 1000,
+  "maxPrice": 10000000,
+  "maxListings": 3,
+  "testDriveSeconds": 60,
+  "testDriveCooldown": 60,
+  "accounts": [
+    "bank",
+    "cash"
+  ],
+  "payoutAccount": "bank"
+}

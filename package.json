@@ -1,6 +1,6 @@
 {
   "name": "ai-vehiclesales",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "private": true,
   "description": "Player used car lot: list owned vehicles for sale, test drives, buyers pay the seller",
   "license": "GPL-3.0-only",

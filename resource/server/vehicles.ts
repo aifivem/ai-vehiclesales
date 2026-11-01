@@ -4,7 +4,8 @@ import type {
   OwnedVehicle,
   VehicleOwner,
 } from "@aicore-fivem/shared";
-import type { Look, Lot } from "common/sales";
+import type { Lot } from "common/lots";
+import type { Look } from "common/rows";
 
 /** ai-vehicles: every listed vehicle stays there, owned by this hold owner while it is listed. */
 export const vehiclesApi = resourceExport("ai-vehicles");

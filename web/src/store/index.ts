@@ -5,7 +5,7 @@ import {
   type PayloadAction,
 } from "@reduxjs/toolkit";
 import { useDispatch, useSelector } from "react-redux";
-import type { ScreenRow } from "../../../resource/common/sales";
+import type { ScreenRow } from "../../../resource/common/rows";
 
 const adapter = createEntityAdapter<ScreenRow>();
 

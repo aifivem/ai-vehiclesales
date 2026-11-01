@@ -587,7 +587,7 @@ var ClientGate = class {
 	}
 };
 // ../../../packages/lib/src/server/callback.ts
-const log$6 = createLogger(GetCurrentResourceName()), resource$4 = GetCurrentResourceName(), REFUSED = Symbol("refused");
+const log$6 = createLogger(GetCurrentResourceName()), resource$5 = GetCurrentResourceName(), REFUSED = Symbol("refused");
 function onClientCallback(name, first, second) {
 	let [handler, options] = typeof first == "function" ? [first, second ?? {}] : [second, first], gate = new ClientGate(name, options, 20);
 	onNet(requestEvent(name), async (caller, id, ...raw) => {
@@ -605,7 +605,7 @@ function onClientCallback(name, first, second) {
 }
 const pending$1 = new Map();
 let nextId = 0;
-onNet(responseEvent(resource$4), (id, ok, result) => {
+onNet(responseEvent(resource$5), (id, ok, result) => {
 	let entry = typeof id == "number" ? pending$1.get(id) : void 0;
 	entry && entry.source === Number(globalThis.source) && (pending$1.delete(id), clearTimeout(entry.timer), ok === !0 ? entry.resolve(result) : entry.reject(Error("client callback failed")));
 });
@@ -620,7 +620,7 @@ function triggerClientCallback(name, source, args = [], timeoutMs = 3e4) {
 			resolve,
 			reject,
 			timer
-		}), emitNet(requestEvent(name), source, resource$4, id, ...args);
+		}), emitNet(requestEvent(name), source, resource$5, id, ...args);
 	});
 }
 // ../../../packages/lib/src/server/admin/patch.ts
@@ -665,7 +665,7 @@ function toPatch(value) {
 		default: return null;
 	}
 }
-const clone = (value) => value === void 0 ? value : JSON.parse(JSON.stringify(value)), core$28 = resourceExport(CORE.resource), ERR = {
+const clone = (value) => value === void 0 ? value : JSON.parse(JSON.stringify(value)), core$29 = resourceExport(CORE.resource), ERR = {
 	type: "ADMIN_ERR_TYPE",
 	range: "ADMIN_ERR_RANGE",
 	length: "ADMIN_ERR_LENGTH",
@@ -679,7 +679,7 @@ const clone = (value) => value === void 0 ? value : JSON.parse(JSON.stringify(va
 		if (cached && Date.now() - cached.at < 2e3) return cached.values.size > 0 ? cached.values : null;
 		let list = [];
 		try {
-			list = core$28.GetLookupValues(source);
+			list = core$29.GetLookupValues(source);
 		} catch {}
 		let values = new Set(Array.isArray(list) ? list.filter((v) => typeof v == "string") : []);
 		return this.lists.set(source, {
@@ -808,11 +808,7 @@ function applyEdit(data, patch, spec) {
 	}
 	return [spec.kind === "records" ? patch.key : void 0];
 }
-// ../../../packages/lib/src/server/admin/jsonSchema.ts
-const SCHEMA_KEY = {
-	type: "string",
-	description: "This file's JSON Schema (for editors)."
-};
+// ../../../packages/lib/src/server/admin/descriptions.ts
 function langFile(resource) {
 	try {
 		let raw = JSON.parse(LoadResourceFile(resource, "locales/en.json") ?? "{}");
@@ -839,6 +835,11 @@ function describe(schema, file, lang) {
 	for (let tab of schema.tabs) if (tab.file === file) for (let card of tab.cards) collect(card.fields, "", lang, out);
 	return out;
 }
+// ../../../packages/lib/src/server/admin/jsonSchema.ts
+const SCHEMA_KEY = {
+	type: "string",
+	description: "This file's JSON Schema (for editors)."
+};
 function toJson(spec, path, desc) {
 	let description = desc.get(path), base = description ? { description } : {};
 	switch (spec.type) {
@@ -943,27 +944,20 @@ function writeSchema(resource, name, text, log) {
 	let dir = `${GetResourcePath(resource)}/data/schemas`;
 	(0, node_fs_promises.mkdir)(dir, { recursive: !0 }).then(() => (0, node_fs_promises.writeFile)(`${dir}/${name}.schema.json`, text, "utf8")).catch((error) => log.error(`writing ${resource}/${path} failed`, error));
 }
-// ../../../packages/lib/src/server/admin/panel.ts
-const core$27 = resourceExport(CORE.resource);
-var AdminPanel = class {
+// ../../../packages/lib/src/server/admin/panelFiles.ts
+const core$28 = resourceExport(CORE.resource);
+var PanelFiles = class {
 	schema;
 	data = new Map();
 	dataFiles = new Map();
 	handlers = new Map();
-	rules = new Map();
-	actions = new Map();
 	views = new FileViews((file) => this.get(file));
 	worldChanges = new Map();
 	resource = GetCurrentResourceName();
 	log = createLogger(this.resource);
-	editor = 0;
 	constructor(schema) {
 		this.schema = schema;
 		for (let [name, spec] of Object.entries(schema.files)) this.load(name, spec);
-		registerExport("AdminPanelSnapshot", () => this.snapshot()), registerExport("AdminPanelData", () => this.dataSnapshot()), registerExport("AdminPanelSummary", () => this.summary()), registerExport("AdminPanelApply", (admin, patch) => this.apply(admin, patch)), onClientCallback(ADMIN.worldChangesCallback(this.resource), () => Object.fromEntries(this.worldChanges), { rate: {
-			count: 4,
-			windowMs: 1e4
-		} }), setImmediate(() => core$27.RegisterAdminPanel(this.resource));
 	}
 	get(file) {
 		return this.data.get(file) ?? {};
@@ -971,17 +965,68 @@ var AdminPanel = class {
 	onChange(file, handler) {
 		this.handlers.set(file, [...this.handlers.get(file) ?? [], handler]);
 	}
-	rule(file, rule) {
-		this.rules.set(file, rule);
-	}
-	onAction(id, handler) {
-		this.actions.set(id, handler);
-	}
 	view(file, read) {
 		return this.views.view(file, read);
 	}
 	records(file, readOne) {
 		return this.views.records(file, readOne);
+	}
+	commit(file, key, value) {
+		let data = this.data.get(file);
+		data && (key === void 0 ? isRecord(value) && this.data.set(file, clone(value)) : value === null ? delete data[key] : data[key] = clone(value), this.changed(file, key));
+	}
+	commitAfter(file, key, value) {
+		setImmediate(() => this.commit(file, key, value));
+	}
+	store(patch, spec) {
+		let data = this.data.get(patch.file) ?? {}, keys = applyEdit(data, patch, spec);
+		if (keys.length !== 0) {
+			this.data.set(patch.file, data);
+			for (let key of keys) this.changed(patch.file, key);
+		}
+	}
+	changed(file, key) {
+		let spec = this.schema.files[file], data = this.get(file), value = key === void 0 ? data : data[key] ?? null;
+		this.dataFiles.get(file)?.write(data), this.views.changed(file, key, value);
+		for (let handler of this.handlers.get(file) ?? []) handler(key, value);
+		if (core$28.AdminPanelChanged({
+			resource: this.resource,
+			file,
+			key,
+			value: clone(value)
+		}), spec?.sync !== "all") return;
+		let changes = this.worldChanges.get(file) ?? {};
+		changes[key ?? ""] = clone(value), this.worldChanges.set(file, changes), emitNet(ADMIN.worldEvent(this.resource), -1, file, key ?? null, value);
+	}
+	load(name, spec) {
+		if (spec.memory) {
+			this.data.set(name, {});
+			return;
+		}
+		let file = new DataFile(this.resource, name, this.log);
+		this.dataFiles.set(name, file), file.schemaRef = `./schemas/${name}.schema.json`, writeSchema(this.resource, name, fileSchema(this.resource, this.schema, name, spec), this.log);
+		let raw = file.read(), data = isRecord(raw) ? raw : {}, filled = !1;
+		if (spec.kind === "settings") for (let [section, value] of Object.entries(spec.defaults ?? {})) section in data || (data[section] = clone(value), filled = !0);
+		this.data.set(name, data), (filled || raw === null || !file.hasSchemaRef()) && file.write(data);
+	}
+};
+// ../../../packages/lib/src/server/admin/panel.ts
+const core$27 = resourceExport(CORE.resource);
+var AdminPanel = class extends PanelFiles {
+	rules = new Map();
+	actions = new Map();
+	editor = 0;
+	constructor(schema) {
+		super(schema), registerExport("AdminPanelSnapshot", () => this.snapshot()), registerExport("AdminPanelData", () => this.dataSnapshot()), registerExport("AdminPanelSummary", () => this.summary()), registerExport("AdminPanelApply", (admin, patch) => this.apply(admin, patch)), onClientCallback(ADMIN.worldChangesCallback(this.resource), () => Object.fromEntries(this.worldChanges), { rate: {
+			count: 4,
+			windowMs: 1e4
+		} }), setImmediate(() => core$27.RegisterAdminPanel(this.resource));
+	}
+	rule(file, rule) {
+		this.rules.set(file, rule);
+	}
+	onAction(id, handler) {
+		this.actions.set(id, handler);
 	}
 	snapshot() {
 		return {
@@ -1059,44 +1104,6 @@ var AdminPanel = class {
 			};
 		}
 	}
-	commit(file, key, value) {
-		let data = this.data.get(file);
-		data && (key === void 0 ? isRecord(value) && this.data.set(file, clone(value)) : value === null ? delete data[key] : data[key] = clone(value), this.changed(file, key));
-	}
-	commitAfter(file, key, value) {
-		setImmediate(() => this.commit(file, key, value));
-	}
-	store(patch, spec) {
-		let data = this.data.get(patch.file) ?? {}, keys = applyEdit(data, patch, spec);
-		if (keys.length !== 0) {
-			this.data.set(patch.file, data);
-			for (let key of keys) this.changed(patch.file, key);
-		}
-	}
-	changed(file, key) {
-		let spec = this.schema.files[file], data = this.get(file), value = key === void 0 ? data : data[key] ?? null;
-		this.dataFiles.get(file)?.write(data), this.views.changed(file, key, value);
-		for (let handler of this.handlers.get(file) ?? []) handler(key, value);
-		if (core$27.AdminPanelChanged({
-			resource: this.resource,
-			file,
-			key,
-			value: clone(value)
-		}), spec?.sync !== "all") return;
-		let changes = this.worldChanges.get(file) ?? {};
-		changes[key ?? ""] = clone(value), this.worldChanges.set(file, changes), emitNet(ADMIN.worldEvent(this.resource), -1, file, key ?? null, value);
-	}
-	load(name, spec) {
-		if (spec.memory) {
-			this.data.set(name, {});
-			return;
-		}
-		let file = new DataFile(this.resource, name, this.log);
-		this.dataFiles.set(name, file), file.schemaRef = `./schemas/${name}.schema.json`, writeSchema(this.resource, name, fileSchema(this.resource, this.schema, name, spec), this.log);
-		let raw = file.read(), data = isRecord(raw) ? raw : {}, filled = !1;
-		if (spec.kind === "settings") for (let [section, value] of Object.entries(spec.defaults ?? {})) section in data || (data[section] = clone(value), filled = !0);
-		this.data.set(name, data), (filled || raw === null || !file.hasSchemaRef()) && file.write(data);
-	}
 };
 function labelOf(record, path) {
 	if (!path) return null;
@@ -1125,7 +1132,7 @@ function notify(source, text, kind = "info", duration, title) {
 	emitNet(LIB_UI.notifyEvent, source, notification);
 }
 resourceExport(CORE.resource);
-// ../../../packages/lib/src/server/online.ts
+// ../../../packages/lib/src/server/online/mirror.ts
 const core$25 = resourceExport(CORE.resource);
 function reindex(index, source, before, after) {
 	for (let name of before) {
@@ -1137,7 +1144,7 @@ function reindex(index, source, before, after) {
 		set || index.set(name, set = new Set()), set.add(source);
 	}
 }
-var OnlinePlayers = class {
+var OnlineMirror = class {
 	players = new Map();
 	onDuty = new Map();
 	jobIndex = new Map();
@@ -1189,6 +1196,7 @@ var OnlinePlayers = class {
 		let set = this.onDuty.get(job);
 		set || this.onDuty.set(job, set = new Set()), set.add(source);
 	}
+}, OnlinePlayers = class extends OnlineMirror {
 	sources() {
 		return this.start(), this.players.keys();
 	}
@@ -1258,10 +1266,6 @@ const EMPTY = new Set(), online = new OnlinePlayers(), core$24 = resourceExport(
 	give: (source, vehicle, purpose = "temporary") => core$24.GiveVehicleKeys(source, vehicle, purpose),
 	remove: (source, vehicle) => core$24.RemoveVehicleKeys(source, vehicle),
 	has: (source, vehicle) => core$24.HasVehicleKeys(source, vehicle)
-}, core$23 = resourceExport(CORE.resource), fuel = {
-	get: (vehicle) => core$23.GetVehicleFuel(vehicle),
-	set: (vehicle, level) => core$23.SetVehicleFuel(vehicle, level),
-	provider: () => core$23.GetFuelSystem()
 }, TYPES = new Set([
 	"automobile",
 	"bike",
@@ -1280,14 +1284,12 @@ async function vehicleType(model, asker) {
 	let seen = votes.get(hash) ?? new Map(), first = seen.get(answer);
 	return first !== void 0 && first !== asker ? (types.set(hash, answer), votes.delete(hash)) : (seen.set(answer, asker), votes.set(hash, seen)), answer;
 }
-async function seatPlayer(vehicle, source, seat) {
-	let ped = GetPlayerPed(String(source));
-	return ped ? waitFor(() => {
-		if (!DoesEntityExist(vehicle)) return !1;
-		if (GetPedInVehicleSeat(vehicle, seat) === ped) return !0;
-		SetPedIntoVehicle(ped, vehicle, seat);
-	}, 2e3, 150).catch(() => !1) : !1;
-}
+// ../../../packages/lib/src/server/fuel.ts
+const core$23 = resourceExport(CORE.resource), fuel = {
+	get: (vehicle) => core$23.GetVehicleFuel(vehicle),
+	set: (vehicle, level) => core$23.SetVehicleFuel(vehicle, level),
+	provider: () => core$23.GetFuelSystem()
+};
 function randomPlate(prefix) {
 	let digit = () => String(Math.floor(Math.random() * 10));
 	if (prefix !== void 0) {
@@ -1297,6 +1299,15 @@ function randomPlate(prefix) {
 	}
 	let letter = () => "ABCDEFGHJKLMNPRSTUVWXYZ"[Math.floor(Math.random() * 23)] ?? "A";
 	return `${digit()}${digit()}${letter()}${letter()}${letter()}${digit()}${digit()}${digit()}`;
+}
+// ../../../packages/lib/src/server/vehicle/spawn.ts
+async function seatPlayer(vehicle, source, seat) {
+	let ped = GetPlayerPed(String(source));
+	return ped ? waitFor(() => {
+		if (!DoesEntityExist(vehicle)) return !1;
+		if (GetPedInVehicleSeat(vehicle, seat) === ped) return !0;
+		SetPedIntoVehicle(ped, vehicle, seat);
+	}, 2e3, 150).catch(() => !1) : !1;
 }
 async function spawnVehicle(options) {
 	let type = options.asker === void 0 ? options.type ?? "automobile" : await vehicleType(options.model, options.asker);
@@ -1319,6 +1330,14 @@ async function spawnVehicle(options) {
 	}], ...options.seats ?? []];
 	return await Promise.all(riders.map((r) => seatPlayer(vehicle, r.source, r.seat))), vehicle;
 }
+// ../../../packages/lib/src/server/netEntity.ts
+function entityFromNet(netId, type) {
+	if (readId(netId) === null) return 0;
+	let entity = NetworkGetEntityFromNetworkId(netId);
+	return !entity || !DoesEntityExist(entity) ? 0 : type === void 0 || GetEntityType(entity) === type ? entity : 0;
+}
+const vehicleFromNet = (netId) => entityFromNet(netId, 2);
+// ../../../packages/lib/src/server/vehicle/nearby.ts
 function nearestVehicleAt(point, metres, filter) {
 	let best = 0, bestDistance = metres;
 	for (let vehicle of GetAllVehicles()) {
@@ -1327,12 +1346,6 @@ function nearestVehicleAt(point, metres, filter) {
 	}
 	return best;
 }
-function entityFromNet(netId, type) {
-	if (readId(netId) === null) return 0;
-	let entity = NetworkGetEntityFromNetworkId(netId);
-	return !entity || !DoesEntityExist(entity) ? 0 : type === void 0 || GetEntityType(entity) === type ? entity : 0;
-}
-const vehicleFromNet = (netId) => entityFromNet(netId, 2);
 function vehicleNearPlayer(source, netId, options = {}) {
 	let vehicle = vehicleFromNet(netId);
 	if (!vehicle) return 0;
@@ -1475,10 +1488,10 @@ new class {
 		let def = this.gangs.get(name);
 		return def === void 0 && this.gangs.set(name, def = core$21.GetGangDefinition(name) ?? null), def;
 	}
-}();
-// ../../../packages/lib/src/server/command.ts
+}(), createLogger(GetCurrentResourceName());
+// ../../../packages/lib/src/server/command/commandSet.ts
 const resource$3 = GetCurrentResourceName();
-createLogger(resource$3), new class {
+new class {
 	list = [];
 	sent = new Map();
 	announced = 0;
@@ -15867,7 +15880,7 @@ function onStop(fn) {
 		resource === self && fn();
 	});
 }
-// ../../../packages/lib/src/fivem/scheduler.ts
+// ../../../packages/lib/src/fivem/scheduler/group.ts
 var Group = class {
 	interval;
 	jobs = Array(8);
@@ -15953,7 +15966,7 @@ new class {
 		}
 		groups.length = kept, this.nextDue = soonest;
 	};
-}(), IsDuplicityVersion(), resourceExport(CORE.resource), resourceExport(CORE.resource);
+}(), IsDuplicityVersion(), IsDuplicityVersion(), resourceExport(CORE.resource), resourceExport(CORE.resource);
 // ../../../packages/lib/src/server/phone.ts
 const core$18 = resourceExport(CORE.resource), phone = {
 	number: (source) => core$18.GetPhoneNumber(source),
@@ -15964,9 +15977,6 @@ const core$18 = resourceExport(CORE.resource), phone = {
 	notify: (source, notification) => core$18.PhoneNotify(source, notification)
 };
 resourceExport(CORE.resource), resourceExport(CORE.resource), resourceExport(CORE.resource), resourceExport(CORE.resource), resourceExport(CORE.resource), resourceExport(CORE.resource), resourceExport(CORE.resource), resourceExport(CORE.resource), resourceExport(CORE.resource), resourceExport(CORE.resource), resourceExport(CORE.resource), resourceExport(CORE.resource), resourceExport(CORE.resource), resourceExport(CORE.resource), resourceExport(CORE.resource);
-// resource/common/locale.ts
-const Locale = createLocale(), ResourceName = GetCurrentResourceName();
-IsDuplicityVersion();
 // resource/common/sales.ts
 const EVENTS = {
 	watch: "ai-vehiclesales:watch",
@@ -15984,7 +15994,8 @@ const EVENTS = {
 	testDrive: "ai-vehiclesales:testDrive",
 	endTestDrive: "ai-vehiclesales:endTestDrive",
 	testDriveEnded: "ai-vehiclesales:testDriveEnded"
-}, names = (v) => Array.isArray(v) ? v.filter((x) => typeof x == "string") : [];
+};
+// resource/common/lots.ts
 function readLot(id, v) {
 	let c = record(v.coords), at = {
 		x: num(c.x, 0),
@@ -16013,6 +16024,8 @@ function readLot(id, v) {
 		blip: bool(v.blip, !0)
 	};
 }
+// resource/common/settings.ts
+const names = (v) => Array.isArray(v) ? v.filter((x) => typeof x == "string") : [];
 function readCommissionTo(v) {
 	let owner = v.commissionTo;
 	if (owner !== "job" && owner !== "gang") return null;
@@ -16043,7 +16056,339 @@ function readSettings(raw) {
 		})
 	};
 }
-const dealerPriceOf = (catalogPrice, share) => Math.floor(catalogPrice * share / 100), payoutOf = (price, commission) => price - Math.floor(price * commission / 100), account = {
+// resource/server/schema/lots.ts
+const lotsFile = {
+	kind: "records",
+	sync: "all",
+	labelPath: "label",
+	newRecord: {
+		label: "",
+		coords: {
+			x: 0,
+			y: 0,
+			z: 0
+		},
+		radius: 2,
+		area: 80,
+		sell: {
+			x: 0,
+			y: 0,
+			z: 0
+		},
+		spots: [],
+		preview: {
+			x: 0,
+			y: 0,
+			z: 0,
+			heading: 0
+		},
+		camera: {
+			x: 0,
+			y: 0,
+			z: 0,
+			heading: 0
+		},
+		delivery: {
+			x: 0,
+			y: 0,
+			z: 0,
+			heading: 0
+		},
+		blip: !0
+	},
+	sections: {
+		ped: PLACE_PED_SPEC,
+		label: {
+			type: "text",
+			min: 1,
+			max: 48
+		},
+		coords: { type: "vec3" },
+		radius: {
+			type: "number",
+			min: 1,
+			max: 10
+		},
+		area: {
+			type: "number",
+			min: 20,
+			max: 300
+		},
+		sell: { type: "vec3" },
+		spots: {
+			type: "list",
+			max: 100,
+			of: {
+				type: "object",
+				fields: { coords: { type: "vec4" } }
+			}
+		},
+		preview: { type: "vec4" },
+		camera: { type: "vec4" },
+		delivery: { type: "vec4" },
+		blip: { type: "bool" }
+	}
+}, lotsTab = {
+	id: "lots",
+	file: "lots",
+	icon: "warehouse",
+	label: "ADMIN_TAB_LOTS",
+	desc: "ADMIN_TAB_LOTS_DESC",
+	createLabel: "ADMIN_NEW_LOT",
+	deleteLabel: "ADMIN_DELETE_LOT",
+	deleteDesc: "ADMIN_DELETE_LOT_DESC",
+	cards: [
+		{
+			icon: "warehouse",
+			title: "ADMIN_C_LOT",
+			desc: "ADMIN_C_LOT_DESC",
+			fields: [
+				{
+					widget: "text",
+					path: "label",
+					suggest: { from: "coords" },
+					label: "ADMIN_F_LABEL",
+					placeholder: "ADMIN_P_LABEL"
+				},
+				{
+					widget: "point",
+					path: "coords",
+					label: "ADMIN_F_COORDS",
+					hint: "ADMIN_H_COORDS",
+					ground: !0
+				},
+				{
+					widget: "number",
+					path: "radius",
+					label: "ADMIN_F_RADIUS",
+					min: 1,
+					max: 10,
+					unit: "m"
+				},
+				{
+					widget: "number",
+					path: "area",
+					label: "ADMIN_F_AREA",
+					hint: "ADMIN_H_AREA",
+					min: 20,
+					max: 300,
+					step: 5,
+					unit: "m"
+				},
+				{
+					widget: "point",
+					path: "sell",
+					label: "ADMIN_F_SELL",
+					hint: "ADMIN_H_SELL",
+					ground: !0
+				},
+				{
+					widget: "switch",
+					path: "blip",
+					label: "ADMIN_F_BLIP"
+				}
+			]
+		},
+		{
+			icon: "square-parking",
+			title: "ADMIN_C_SPOTS",
+			desc: "ADMIN_C_SPOTS_DESC",
+			fields: [{
+				widget: "list",
+				path: "spots",
+				label: "ADMIN_F_SPOTS",
+				addLabel: "ADMIN_ADD_SPOT",
+				max: 100,
+				newRow: { coords: {
+					x: 0,
+					y: 0,
+					z: 0,
+					heading: 0
+				} },
+				rows: [{
+					widget: "point",
+					path: "coords",
+					label: "ADMIN_F_SPOT",
+					heading: !0,
+					ground: !0
+				}]
+			}]
+		},
+		{
+			icon: "camera",
+			title: "ADMIN_C_SHOWROOM",
+			desc: "ADMIN_C_SHOWROOM_DESC",
+			fields: [
+				{
+					widget: "point",
+					path: "preview",
+					label: "ADMIN_F_PREVIEW",
+					hint: "ADMIN_H_PREVIEW",
+					heading: !0,
+					ground: !0
+				},
+				{
+					widget: "point",
+					path: "camera",
+					label: "ADMIN_F_CAMERA",
+					hint: "ADMIN_H_CAMERA",
+					heading: !0,
+					from: "camera"
+				},
+				{
+					widget: "point",
+					path: "delivery",
+					label: "ADMIN_F_DELIVERY",
+					hint: "ADMIN_H_DELIVERY",
+					heading: !0,
+					ground: !0
+				}
+			]
+		},
+		{
+			icon: "user",
+			title: "ADMIN_C_PED",
+			desc: "ADMIN_C_PED_DESC",
+			fields: placePedFields()
+		}
+	]
+}, salesCard = {
+	icon: "tag",
+	title: "ADMIN_C_SALES",
+	desc: "ADMIN_C_SALES_DESC",
+	fields: [
+		{
+			widget: "number",
+			path: "commission",
+			label: "ADMIN_F_COMMISSION",
+			hint: "ADMIN_H_COMMISSION",
+			min: 0,
+			max: 90,
+			unit: "%"
+		},
+		{
+			widget: "select",
+			path: "commissionTo",
+			label: "ADMIN_F_COMMISSION_TO",
+			hint: "ADMIN_H_COMMISSION_TO",
+			options: [
+				{
+					value: "",
+					label: "ADMIN_O_COMMISSION_NONE"
+				},
+				{
+					value: "job",
+					label: "ADMIN_O_COMMISSION_JOB"
+				},
+				{
+					value: "gang",
+					label: "ADMIN_O_COMMISSION_GANG"
+				}
+			]
+		},
+		{
+			widget: "text",
+			lookup: "job",
+			path: "commissionJob",
+			label: "ADMIN_F_COMMISSION_JOB",
+			placeholder: "ADMIN_P_COMMISSION_JOB",
+			showIf: {
+				path: "commissionTo",
+				values: ["job"]
+			}
+		},
+		{
+			widget: "text",
+			lookup: "gang",
+			path: "commissionGang",
+			label: "ADMIN_F_COMMISSION_GANG",
+			placeholder: "ADMIN_P_COMMISSION_GANG",
+			showIf: {
+				path: "commissionTo",
+				values: ["gang"]
+			}
+		},
+		{
+			widget: "text",
+			lookup: "account",
+			path: "commissionAccount",
+			label: "ADMIN_F_COMMISSION_ACCOUNT",
+			hint: "ADMIN_H_COMMISSION_ACCOUNT",
+			placeholder: "ADMIN_P_ACCOUNT",
+			showIf: {
+				path: "commissionTo",
+				values: ["job", "gang"]
+			}
+		},
+		{
+			widget: "number",
+			path: "minPrice",
+			label: "ADMIN_F_MIN_PRICE",
+			min: 1,
+			max: 1e8,
+			step: 500,
+			unit: "$"
+		},
+		{
+			widget: "number",
+			path: "maxPrice",
+			label: "ADMIN_F_MAX_PRICE",
+			min: 1,
+			max: 1e8,
+			step: 1e4,
+			unit: "$"
+		},
+		{
+			widget: "number",
+			path: "maxListings",
+			label: "ADMIN_F_MAX_LISTINGS",
+			hint: "ADMIN_H_MAX_LISTINGS",
+			min: 1,
+			max: 50
+		}
+	]
+}, paymentCard = {
+	icon: "money-bill-wave",
+	title: "ADMIN_C_PAYMENT",
+	desc: "ADMIN_C_PAYMENT_DESC",
+	fields: [{
+		widget: "tags",
+		lookup: "account",
+		path: "accounts",
+		label: "ADMIN_F_ACCOUNTS",
+		hint: "ADMIN_H_ACCOUNTS",
+		placeholder: "ADMIN_P_ACCOUNT"
+	}, {
+		widget: "text",
+		lookup: "account",
+		path: "payoutAccount",
+		label: "ADMIN_F_PAYOUT_ACCOUNT",
+		hint: "ADMIN_H_PAYOUT_ACCOUNT",
+		placeholder: "ADMIN_P_ACCOUNT"
+	}]
+}, testDriveCard = {
+	icon: "gauge",
+	title: "ADMIN_C_TEST_DRIVE",
+	desc: "ADMIN_C_TEST_DRIVE_DESC",
+	fields: [{
+		widget: "number",
+		path: "testDriveSeconds",
+		label: "ADMIN_F_TEST_DRIVE_TIME",
+		min: 10,
+		max: 600,
+		step: 10,
+		unit: "s"
+	}, {
+		widget: "number",
+		path: "testDriveCooldown",
+		label: "ADMIN_F_TEST_DRIVE_COOLDOWN",
+		hint: "ADMIN_H_TEST_DRIVE_COOLDOWN",
+		min: 0,
+		max: 3600,
+		step: 10,
+		unit: "s"
+	}]
+}, account = {
 	type: "text",
 	lookup: "account",
 	min: 2,
@@ -16144,306 +16489,16 @@ const dealerPriceOf = (catalogPrice, share) => Math.floor(catalogPrice * share /
 				payoutAccount: "bank"
 			}
 		},
-		lots: {
-			kind: "records",
-			sync: "all",
-			labelPath: "label",
-			newRecord: {
-				label: "",
-				coords: {
-					x: 0,
-					y: 0,
-					z: 0
-				},
-				radius: 2,
-				area: 80,
-				sell: {
-					x: 0,
-					y: 0,
-					z: 0
-				},
-				spots: [],
-				preview: {
-					x: 0,
-					y: 0,
-					z: 0,
-					heading: 0
-				},
-				camera: {
-					x: 0,
-					y: 0,
-					z: 0,
-					heading: 0
-				},
-				delivery: {
-					x: 0,
-					y: 0,
-					z: 0,
-					heading: 0
-				},
-				blip: !0
-			},
-			sections: {
-				ped: PLACE_PED_SPEC,
-				label: {
-					type: "text",
-					min: 1,
-					max: 48
-				},
-				coords: { type: "vec3" },
-				radius: {
-					type: "number",
-					min: 1,
-					max: 10
-				},
-				area: {
-					type: "number",
-					min: 20,
-					max: 300
-				},
-				sell: { type: "vec3" },
-				spots: {
-					type: "list",
-					max: 100,
-					of: {
-						type: "object",
-						fields: { coords: { type: "vec4" } }
-					}
-				},
-				preview: { type: "vec4" },
-				camera: { type: "vec4" },
-				delivery: { type: "vec4" },
-				blip: { type: "bool" }
-			}
-		}
+		lots: lotsFile
 	},
-	tabs: [{
-		id: "lots",
-		file: "lots",
-		icon: "warehouse",
-		label: "ADMIN_TAB_LOTS",
-		desc: "ADMIN_TAB_LOTS_DESC",
-		createLabel: "ADMIN_NEW_LOT",
-		deleteLabel: "ADMIN_DELETE_LOT",
-		deleteDesc: "ADMIN_DELETE_LOT_DESC",
-		cards: [
-			{
-				icon: "warehouse",
-				title: "ADMIN_C_LOT",
-				desc: "ADMIN_C_LOT_DESC",
-				fields: [
-					{
-						widget: "text",
-						path: "label",
-						suggest: { from: "coords" },
-						label: "ADMIN_F_LABEL",
-						placeholder: "ADMIN_P_LABEL"
-					},
-					{
-						widget: "point",
-						path: "coords",
-						label: "ADMIN_F_COORDS",
-						hint: "ADMIN_H_COORDS",
-						ground: !0
-					},
-					{
-						widget: "number",
-						path: "radius",
-						label: "ADMIN_F_RADIUS",
-						min: 1,
-						max: 10,
-						unit: "m"
-					},
-					{
-						widget: "number",
-						path: "area",
-						label: "ADMIN_F_AREA",
-						hint: "ADMIN_H_AREA",
-						min: 20,
-						max: 300,
-						step: 5,
-						unit: "m"
-					},
-					{
-						widget: "point",
-						path: "sell",
-						label: "ADMIN_F_SELL",
-						hint: "ADMIN_H_SELL",
-						ground: !0
-					},
-					{
-						widget: "switch",
-						path: "blip",
-						label: "ADMIN_F_BLIP"
-					}
-				]
-			},
-			{
-				icon: "square-parking",
-				title: "ADMIN_C_SPOTS",
-				desc: "ADMIN_C_SPOTS_DESC",
-				fields: [{
-					widget: "list",
-					path: "spots",
-					label: "ADMIN_F_SPOTS",
-					addLabel: "ADMIN_ADD_SPOT",
-					max: 100,
-					newRow: { coords: {
-						x: 0,
-						y: 0,
-						z: 0,
-						heading: 0
-					} },
-					rows: [{
-						widget: "point",
-						path: "coords",
-						label: "ADMIN_F_SPOT",
-						heading: !0,
-						ground: !0
-					}]
-				}]
-			},
-			{
-				icon: "camera",
-				title: "ADMIN_C_SHOWROOM",
-				desc: "ADMIN_C_SHOWROOM_DESC",
-				fields: [
-					{
-						widget: "point",
-						path: "preview",
-						label: "ADMIN_F_PREVIEW",
-						hint: "ADMIN_H_PREVIEW",
-						heading: !0,
-						ground: !0
-					},
-					{
-						widget: "point",
-						path: "camera",
-						label: "ADMIN_F_CAMERA",
-						hint: "ADMIN_H_CAMERA",
-						heading: !0,
-						from: "camera"
-					},
-					{
-						widget: "point",
-						path: "delivery",
-						label: "ADMIN_F_DELIVERY",
-						hint: "ADMIN_H_DELIVERY",
-						heading: !0,
-						ground: !0
-					}
-				]
-			},
-			{
-				icon: "user",
-				title: "ADMIN_C_PED",
-				desc: "ADMIN_C_PED_DESC",
-				fields: placePedFields()
-			}
-		]
-	}, {
+	tabs: [lotsTab, {
 		id: "settings",
 		file: "settings",
 		icon: "sliders",
 		label: "ADMIN_TAB_SETTINGS",
 		desc: "ADMIN_TAB_SETTINGS_DESC",
 		cards: [
-			{
-				icon: "tag",
-				title: "ADMIN_C_SALES",
-				desc: "ADMIN_C_SALES_DESC",
-				fields: [
-					{
-						widget: "number",
-						path: "commission",
-						label: "ADMIN_F_COMMISSION",
-						hint: "ADMIN_H_COMMISSION",
-						min: 0,
-						max: 90,
-						unit: "%"
-					},
-					{
-						widget: "select",
-						path: "commissionTo",
-						label: "ADMIN_F_COMMISSION_TO",
-						hint: "ADMIN_H_COMMISSION_TO",
-						options: [
-							{
-								value: "",
-								label: "ADMIN_O_COMMISSION_NONE"
-							},
-							{
-								value: "job",
-								label: "ADMIN_O_COMMISSION_JOB"
-							},
-							{
-								value: "gang",
-								label: "ADMIN_O_COMMISSION_GANG"
-							}
-						]
-					},
-					{
-						widget: "text",
-						lookup: "job",
-						path: "commissionJob",
-						label: "ADMIN_F_COMMISSION_JOB",
-						placeholder: "ADMIN_P_COMMISSION_JOB",
-						showIf: {
-							path: "commissionTo",
-							values: ["job"]
-						}
-					},
-					{
-						widget: "text",
-						lookup: "gang",
-						path: "commissionGang",
-						label: "ADMIN_F_COMMISSION_GANG",
-						placeholder: "ADMIN_P_COMMISSION_GANG",
-						showIf: {
-							path: "commissionTo",
-							values: ["gang"]
-						}
-					},
-					{
-						widget: "text",
-						lookup: "account",
-						path: "commissionAccount",
-						label: "ADMIN_F_COMMISSION_ACCOUNT",
-						hint: "ADMIN_H_COMMISSION_ACCOUNT",
-						placeholder: "ADMIN_P_ACCOUNT",
-						showIf: {
-							path: "commissionTo",
-							values: ["job", "gang"]
-						}
-					},
-					{
-						widget: "number",
-						path: "minPrice",
-						label: "ADMIN_F_MIN_PRICE",
-						min: 1,
-						max: 1e8,
-						step: 500,
-						unit: "$"
-					},
-					{
-						widget: "number",
-						path: "maxPrice",
-						label: "ADMIN_F_MAX_PRICE",
-						min: 1,
-						max: 1e8,
-						step: 1e4,
-						unit: "$"
-					},
-					{
-						widget: "number",
-						path: "maxListings",
-						label: "ADMIN_F_MAX_LISTINGS",
-						hint: "ADMIN_H_MAX_LISTINGS",
-						min: 1,
-						max: 50
-					}
-				]
-			},
+			salesCard,
 			{
 				icon: "wallet",
 				title: "ADMIN_C_DEALER",
@@ -16458,49 +16513,8 @@ const dealerPriceOf = (catalogPrice, share) => Math.floor(catalogPrice * share /
 					unit: "%"
 				}]
 			},
-			{
-				icon: "money-bill-wave",
-				title: "ADMIN_C_PAYMENT",
-				desc: "ADMIN_C_PAYMENT_DESC",
-				fields: [{
-					widget: "tags",
-					lookup: "account",
-					path: "accounts",
-					label: "ADMIN_F_ACCOUNTS",
-					hint: "ADMIN_H_ACCOUNTS",
-					placeholder: "ADMIN_P_ACCOUNT"
-				}, {
-					widget: "text",
-					lookup: "account",
-					path: "payoutAccount",
-					label: "ADMIN_F_PAYOUT_ACCOUNT",
-					hint: "ADMIN_H_PAYOUT_ACCOUNT",
-					placeholder: "ADMIN_P_ACCOUNT"
-				}]
-			},
-			{
-				icon: "gauge",
-				title: "ADMIN_C_TEST_DRIVE",
-				desc: "ADMIN_C_TEST_DRIVE_DESC",
-				fields: [{
-					widget: "number",
-					path: "testDriveSeconds",
-					label: "ADMIN_F_TEST_DRIVE_TIME",
-					min: 10,
-					max: 600,
-					step: 10,
-					unit: "s"
-				}, {
-					widget: "number",
-					path: "testDriveCooldown",
-					label: "ADMIN_F_TEST_DRIVE_COOLDOWN",
-					hint: "ADMIN_H_TEST_DRIVE_COOLDOWN",
-					min: 0,
-					max: 3600,
-					step: 10,
-					unit: "s"
-				}]
-			},
+			paymentCard,
+			testDriveCard,
 			{
 				icon: "map",
 				title: "ADMIN_C_BLIP",
@@ -16518,9 +16532,9 @@ panel.rule("settings", (_key, next) => {
 	let v = record(next);
 	return typeof v.minPrice == "number" && typeof v.maxPrice == "number" && v.minPrice > v.maxPrice ? "ADMIN_ERR_PRICE_RANGE" : null;
 });
-// resource/server/db.ts
-const db = tables();
-// resource/server/listing.ts
+// resource/server/lotArea.ts
+const inLot = (source, lot, slack = 0) => isNear(source, lot, lot.area + slack), db = tables();
+// resource/server/listings/listing.ts
 var Listing = class {
 	id;
 	vehicleId;
@@ -16606,7 +16620,7 @@ const vehiclesApi = resourceExport("ai-vehicles"), HOLD = {
 function deliver(vehicleId, lot, source, purpose) {
 	return new Promise((resolve) => vehiclesApi.SpawnVehicle(vehicleId, lot.delivery, source, resolve, purpose)).then((netId) => (netId === null && vehiclesApi.StoreVehicle(vehicleId, null, "impound"), netId));
 }
-// resource/server/sync.ts
+// resource/server/listings/sync.ts
 const NO_LOOK = {
 	props: null,
 	setup: null
@@ -16757,7 +16771,7 @@ const listings = new class {
 		let change = shelf.remove(listing);
 		shelf.all.size === 0 && this.shelves.delete(listing.lot), this.sync.display(listing.lot, change.parked, change.unparked), this.sync.screen(listing.lot, [], [listing.id]);
 	}
-}(), inLot = (source, lot, slack = 0) => isNear(source, lot, lot.area + slack), lotArg = ([id]) => {
+}(), lotArg = ([id]) => {
 	let lot = readText(id, 48);
 	return lot === null ? null : [lot];
 };
@@ -16805,6 +16819,9 @@ onClientCallback(EVENTS.watch, {
 		}
 	};
 });
+// resource/common/prices.ts
+const dealerPriceOf = (catalogPrice, share) => Math.floor(catalogPrice * share / 100), payoutOf = (price, commission) => price - Math.floor(price * commission / 100), Locale = createLocale(), ResourceName = GetCurrentResourceName();
+IsDuplicityVersion();
 // resource/server/payouts.ts
 const core$2 = resourceExport("ai-core"), log$1 = createLogger(ResourceName), payouts = new class {
 	claiming = new Set();
@@ -16847,7 +16864,227 @@ const core$2 = resourceExport("ai-core"), log$1 = createLogger(ResourceName), pa
 			r.plate
 		]));
 	}
-}(), testDrives = new class {
+}(), core$1 = resourceExport("ai-core");
+function charge(source, price, reason) {
+	for (let account of settings.value.accounts) if (core$1.RemoveMoney(source, account, price, reason)) return account;
+	return null;
+}
+function payCommission(cut, plate) {
+	let to = settings.value.commissionTo;
+	if (!to || cut <= 0) return;
+	let reason = `vehiclesales:commission:${plate}`;
+	core$1.AddSharedMoney(to.owner, to.id, to.account, cut, reason) || aiLog("sales", `commission of $${cut} not paid: no account`, {
+		level: "warn",
+		metadata: {
+			cut,
+			plate,
+			...to
+		}
+	});
+}
+async function buy(source, lotId, id) {
+	let lot = lots.get(lotId), listing = listings.get(id), character = online.character(source);
+	if (!lot || !character || !inLot(source, lot)) return fail("ERR_FAR");
+	if (!listing || listing.lot !== lot.id) return fail("ERR_GONE");
+	if (listing.seller === character.id) return fail("ERR_OWN");
+	if (!listings.claim(listing.id)) return fail("ERR_BUSY");
+	try {
+		if (!isHeld(vehiclesApi.GetVehicle(listing.vehicleId))) return fail("ERR_GONE");
+		if (nearestVehicleAt(lot.delivery, 3)) return fail("ERR_BLOCKED");
+		let reason = `vehiclesales:buy:${listing.plate}`, account = charge(source, listing.price, reason);
+		if (account === null) return fail("ERR_MONEY");
+		let payout = payoutOf(listing.price, settings.value.commission);
+		if (!await listings.sell(listing, payout)) return core$1.AddMoney(source, account, listing.price, `${reason}:refund`), fail("ERR_FAILED");
+		payCommission(listing.price - payout, listing.plate), vehiclesApi.SetOwner(listing.vehicleId, characterOwner(character.id));
+		let netId = await deliver(listing.vehicleId, lot, source, "purchase"), seller = core$1.GetSourceByCharId(listing.seller);
+		return seller !== null && payouts.claim(seller, listing.seller), aiLog("sales", `bought ${listing.plate} for $${listing.price} (seller gets $${payout})`, {
+			source,
+			metadata: {
+				plate: listing.plate,
+				model: listing.model,
+				price: listing.price,
+				payout,
+				seller: listing.seller,
+				account,
+				lot: lot.id
+			}
+		}), {
+			ok: !0,
+			plate: listing.plate,
+			delivered: netId !== null
+		};
+	} finally {
+		listings.release(listing.id);
+	}
+}
+// resource/server/sellSpot.ts
+const sellLock = new SourceLock(), onlyDriver = (vehicle, ped) => {
+	for (let seat = 0; seat < 15; seat++) {
+		let rider = GetPedInVehicleSeat(vehicle, seat);
+		if (rider && rider !== ped) return !1;
+	}
+	return !0;
+};
+function drivenAtSellSpot(source, lotId, netId) {
+	let lot = lots.get(lotId), character = online.character(source);
+	if (!lot || !character || !isNear(source, lot.sell, 8)) return "ERR_FAR";
+	let entity = vehicleNearPlayer(source, netId, { driver: !0 });
+	if (!entity) return "ERR_NOT_DRIVING";
+	if (!onlyDriver(entity, GetPlayerPed(String(source)))) return "ERR_OCCUPIED";
+	let vehicleId = vehiclesApi.GetVehicleIdByEntity(entity), vehicle = vehicleId === null ? null : vehiclesApi.GetVehicle(vehicleId);
+	return !vehicle || vehicleId === null ? "ERR_NOT_OWNED" : vehicle.owner.type !== "character" || vehicle.owner.id !== String(character.id) ? "ERR_NOT_YOURS" : {
+		lot,
+		character,
+		entity,
+		vehicleId,
+		vehicle
+	};
+}
+// resource/server/actions/list.ts
+function listVehicle(source, lotId, netId, price, description) {
+	return sellLock.run(source, fail("ERR_PENDING"), async () => {
+		let driven = drivenAtSellSpot(source, lotId, netId);
+		if (typeof driven == "string") return fail(driven);
+		let { lot, character, vehicleId, vehicle } = driven, { minPrice, maxPrice, maxListings } = settings.value;
+		if (price < minPrice || price > maxPrice) return fail("ERR_PRICE");
+		if (listings.countOf(character.id) >= maxListings) return fail("ERR_LIMIT");
+		if (listings.ofVehicle(vehicleId)) return fail("ERR_LISTED");
+		let listing = await listings.create({
+			vehicleId,
+			lot: lot.id,
+			seller: character.id,
+			sellerName: online.name(source),
+			model: vehicle.model,
+			plate: vehicle.plate,
+			price,
+			description
+		});
+		if (!listing) return fail("ERR_FAILED");
+		let still = drivenAtSellSpot(source, lotId, netId);
+		if (typeof still == "string" || still.vehicleId !== vehicleId) return await listings.discard(listing), fail(typeof still == "string" ? still : "ERR_FAILED");
+		let { entity } = still, level = fuel.get(entity);
+		return vehiclesApi.SaveVehicle(vehicleId, {
+			engine: GetVehicleEngineHealth(entity),
+			body: GetVehicleBodyHealth(entity),
+			...level === null ? {} : { fuel: level }
+		}), vehiclesApi.StoreVehicle(vehicleId, null, "garage"), vehiclesApi.SetOwner(vehicleId, HOLD), vehicleKeys.remove(source, vehicle.plate), listings.add(listing), aiLog("listings", `listed ${vehicle.plate} for $${price} at ${lot.id}`, {
+			source,
+			metadata: {
+				plate: vehicle.plate,
+				model: vehicle.model,
+				price,
+				lot: lot.id
+			}
+		}), { ok: !0 };
+	});
+}
+// resource/server/actions/takeBack.ts
+async function takeBack(source, lotId, id) {
+	let lot = lots.get(lotId), listing = listings.get(id), character = online.character(source);
+	if (!lot || !character || !inLot(source, lot)) return fail("ERR_FAR");
+	if (!listing || listing.lot !== lot.id) return fail("ERR_GONE");
+	if (listing.seller !== character.id) return fail("ERR_NOT_YOURS");
+	if (!listings.claim(listing.id)) return fail("ERR_BUSY");
+	try {
+		if (!isHeld(vehiclesApi.GetVehicle(listing.vehicleId))) return fail("ERR_GONE");
+		if (nearestVehicleAt(lot.delivery, 3)) return fail("ERR_BLOCKED");
+		if (!await listings.withdraw(listing)) return fail("ERR_FAILED");
+		vehiclesApi.SetOwner(listing.vehicleId, characterOwner(character.id));
+		let netId = await deliver(listing.vehicleId, lot, source, "garage");
+		return aiLog("listings", `took ${listing.plate} back from ${lot.id}`, {
+			source,
+			metadata: {
+				plate: listing.plate,
+				lot: lot.id
+			}
+		}), {
+			ok: !0,
+			delivered: netId !== null
+		};
+	} finally {
+		listings.release(listing.id);
+	}
+}
+// resource/server/actions/index.ts
+const listingArgs = ([lotId, id]) => {
+	let lot = readText(lotId, 48), listing = readId(id);
+	return lot === null || listing === null ? null : [lot, listing];
+};
+onClientCallback(EVENTS.list, {
+	args: ([lotId, netId, price, description]) => {
+		let lot = readText(lotId, 48), net = readId(netId), amount = readInt(price, 1, 1e8), text = description === "" || description == null ? "" : readText(description, 200);
+		return lot === null || net === null || amount === null || text === null ? null : [
+			lot,
+			net,
+			amount,
+			stripGameText(text)
+		];
+	},
+	lock: !0
+}, (source, lotId, netId, price, description) => listVehicle(source, lotId, netId, price, description)), onClientCallback(EVENTS.buy, {
+	args: listingArgs,
+	lock: !0
+}, (source, lotId, id) => buy(source, lotId, id)), onClientCallback(EVENTS.takeBack, {
+	args: listingArgs,
+	lock: !0
+}, (source, lotId, id) => takeBack(source, lotId, id));
+// resource/server/dealer.ts
+const core = resourceExport("ai-core");
+function catalogPrice(model) {
+	let price = optionalExport("ai-vehicleshop")?.GetCatalogPrice(model);
+	return typeof price == "number" && Number.isFinite(price) && price > 0 ? price : null;
+}
+function dealerPrice(driven) {
+	let share = settings.value.dealerShare, catalog = share > 0 ? catalogPrice(driven.vehicle.model) : null, price = catalog === null ? 0 : dealerPriceOf(catalog, share);
+	return price <= 0 ? "ERR_NO_DEALER" : listings.ofVehicle(driven.vehicleId) ? "ERR_LISTED" : price;
+}
+const args = ([lotId, netId]) => {
+	let lot = readText(lotId, 48), net = readId(netId);
+	return lot === null || net === null ? null : [lot, net];
+};
+// resource/server/logs.ts
+onClientCallback(EVENTS.quote, { args }, (source, lotId, netId) => {
+	let driven = drivenAtSellSpot(source, lotId, netId);
+	if (typeof driven == "string") return fail(driven);
+	let price = dealerPrice(driven);
+	return typeof price == "string" ? fail(price) : {
+		ok: !0,
+		price
+	};
+}), onClientCallback(EVENTS.sellBack, {
+	args,
+	lock: !0
+}, (source, lotId, netId) => sellLock.run(source, fail("ERR_PENDING"), async () => {
+	let driven = drivenAtSellSpot(source, lotId, netId);
+	if (typeof driven == "string") return fail(driven);
+	let price = dealerPrice(driven);
+	if (typeof price == "string") return fail(price);
+	let { vehicle, vehicleId, entity, lot } = driven, account = settings.value.payoutAccount;
+	return core.AddMoney(source, account, price, `vehiclesales:dealer:${vehicle.plate}`) ? (vehicleKeys.remove(source, vehicle.plate), vehiclesApi.DeleteVehicle(vehicleId), DoesEntityExist(entity) && DeleteEntity(entity), aiLog("sales", `sold ${vehicle.plate} to the dealer for $${price}`, {
+		source,
+		metadata: {
+			plate: vehicle.plate,
+			model: vehicle.model,
+			price,
+			account,
+			lot: lot.id
+		}
+	}), {
+		ok: !0,
+		price
+	}) : fail("ERR_FAILED");
+})), aiLogChannels({
+	listings: {},
+	sales: {}
+});
+// resource/server/setup.ts
+const log = createLogger(ResourceName);
+// resource/server/listings/index.ts
+createDatabaseTables(ResourceName, "sql/main.sql").then(() => listings.load()).then(() => onCharacter({ loaded: (source, character) => payouts.claim(source, character.id) })).catch((error) => log.error("database setup failed", error)), panel.onChange("lots", (key) => {
+	key !== void 0 && listings.relayout(key);
+});
+// resource/server/testDrive/testDrives.ts
+const testDrives = new class {
 	drives = new PlayerMap({ onDrop: (_source, drive) => this.clear(drive) });
 	cooldowns = new KeyedCooldowns();
 	async start(source, charId, lot, listing) {
@@ -16893,215 +17130,8 @@ const core$2 = resourceExport("ai-core"), log$1 = createLogger(ResourceName), pa
 	stopAll() {
 		for (let drive of this.drives.values()) this.clear(drive);
 	}
-}(), sellLock = new SourceLock(), onlyDriver = (vehicle, ped) => {
-	for (let seat = 0; seat < 15; seat++) {
-		let rider = GetPedInVehicleSeat(vehicle, seat);
-		if (rider && rider !== ped) return !1;
-	}
-	return !0;
-};
-function drivenAtSellSpot(source, lotId, netId) {
-	let lot = lots.get(lotId), character = online.character(source);
-	if (!lot || !character || !isNear(source, lot.sell, 8)) return "ERR_FAR";
-	let entity = vehicleNearPlayer(source, netId, { driver: !0 });
-	if (!entity) return "ERR_NOT_DRIVING";
-	if (!onlyDriver(entity, GetPlayerPed(String(source)))) return "ERR_OCCUPIED";
-	let vehicleId = vehiclesApi.GetVehicleIdByEntity(entity), vehicle = vehicleId === null ? null : vehiclesApi.GetVehicle(vehicleId);
-	return !vehicle || vehicleId === null ? "ERR_NOT_OWNED" : vehicle.owner.type !== "character" || vehicle.owner.id !== String(character.id) ? "ERR_NOT_YOURS" : {
-		lot,
-		character,
-		entity,
-		vehicleId,
-		vehicle
-	};
-}
-// resource/server/actions.ts
-const core$1 = resourceExport("ai-core");
-function charge(source, price, reason) {
-	for (let account of settings.value.accounts) if (core$1.RemoveMoney(source, account, price, reason)) return account;
-	return null;
-}
-function payCommission(cut, plate) {
-	let to = settings.value.commissionTo;
-	if (!to || cut <= 0) return;
-	let reason = `vehiclesales:commission:${plate}`;
-	core$1.AddSharedMoney(to.owner, to.id, to.account, cut, reason) || aiLog("sales", `commission of $${cut} not paid: no account`, {
-		level: "warn",
-		metadata: {
-			cut,
-			plate,
-			...to
-		}
-	});
-}
-const listingArgs = ([lotId, id]) => {
-	let lot = readText(lotId, 48), listing = readId(id);
-	return lot === null || listing === null ? null : [lot, listing];
-};
-onClientCallback(EVENTS.list, {
-	args: ([lotId, netId, price, description]) => {
-		let lot = readText(lotId, 48), net = readId(netId), amount = readInt(price, 1, 1e8), text = description === "" || description == null ? "" : readText(description, 200);
-		return lot === null || net === null || amount === null || text === null ? null : [
-			lot,
-			net,
-			amount,
-			stripGameText(text)
-		];
-	},
-	lock: !0
-}, (source, lotId, netId, price, description) => sellLock.run(source, fail("ERR_PENDING"), async () => {
-	let driven = drivenAtSellSpot(source, lotId, netId);
-	if (typeof driven == "string") return fail(driven);
-	let { lot, character, vehicleId, vehicle } = driven, { minPrice, maxPrice, maxListings } = settings.value;
-	if (price < minPrice || price > maxPrice) return fail("ERR_PRICE");
-	if (listings.countOf(character.id) >= maxListings) return fail("ERR_LIMIT");
-	if (listings.ofVehicle(vehicleId)) return fail("ERR_LISTED");
-	let listing = await listings.create({
-		vehicleId,
-		lot: lot.id,
-		seller: character.id,
-		sellerName: online.name(source),
-		model: vehicle.model,
-		plate: vehicle.plate,
-		price,
-		description
-	});
-	if (!listing) return fail("ERR_FAILED");
-	let still = drivenAtSellSpot(source, lotId, netId);
-	if (typeof still == "string" || still.vehicleId !== vehicleId) return await listings.discard(listing), fail(typeof still == "string" ? still : "ERR_FAILED");
-	let { entity } = still, level = fuel.get(entity);
-	return vehiclesApi.SaveVehicle(vehicleId, {
-		engine: GetVehicleEngineHealth(entity),
-		body: GetVehicleBodyHealth(entity),
-		...level === null ? {} : { fuel: level }
-	}), vehiclesApi.StoreVehicle(vehicleId, null, "garage"), vehiclesApi.SetOwner(vehicleId, HOLD), vehicleKeys.remove(source, vehicle.plate), listings.add(listing), aiLog("listings", `listed ${vehicle.plate} for $${price} at ${lot.id}`, {
-		source,
-		metadata: {
-			plate: vehicle.plate,
-			model: vehicle.model,
-			price,
-			lot: lot.id
-		}
-	}), { ok: !0 };
-})), onClientCallback(EVENTS.buy, {
-	args: listingArgs,
-	lock: !0
-}, async (source, lotId, id) => {
-	let lot = lots.get(lotId), listing = listings.get(id), character = online.character(source);
-	if (!lot || !character || !inLot(source, lot)) return fail("ERR_FAR");
-	if (!listing || listing.lot !== lot.id) return fail("ERR_GONE");
-	if (listing.seller === character.id) return fail("ERR_OWN");
-	if (!listings.claim(listing.id)) return fail("ERR_BUSY");
-	try {
-		if (!isHeld(vehiclesApi.GetVehicle(listing.vehicleId))) return fail("ERR_GONE");
-		if (nearestVehicleAt(lot.delivery, 3)) return fail("ERR_BLOCKED");
-		let reason = `vehiclesales:buy:${listing.plate}`, account = charge(source, listing.price, reason);
-		if (account === null) return fail("ERR_MONEY");
-		let payout = payoutOf(listing.price, settings.value.commission);
-		if (!await listings.sell(listing, payout)) return core$1.AddMoney(source, account, listing.price, `${reason}:refund`), fail("ERR_FAILED");
-		payCommission(listing.price - payout, listing.plate), vehiclesApi.SetOwner(listing.vehicleId, characterOwner(character.id));
-		let netId = await deliver(listing.vehicleId, lot, source, "purchase"), seller = core$1.GetSourceByCharId(listing.seller);
-		return seller !== null && payouts.claim(seller, listing.seller), aiLog("sales", `bought ${listing.plate} for $${listing.price} (seller gets $${payout})`, {
-			source,
-			metadata: {
-				plate: listing.plate,
-				model: listing.model,
-				price: listing.price,
-				payout,
-				seller: listing.seller,
-				account,
-				lot: lot.id
-			}
-		}), {
-			ok: !0,
-			plate: listing.plate,
-			delivered: netId !== null
-		};
-	} finally {
-		listings.release(listing.id);
-	}
-}), onClientCallback(EVENTS.takeBack, {
-	args: listingArgs,
-	lock: !0
-}, async (source, lotId, id) => {
-	let lot = lots.get(lotId), listing = listings.get(id), character = online.character(source);
-	if (!lot || !character || !inLot(source, lot)) return fail("ERR_FAR");
-	if (!listing || listing.lot !== lot.id) return fail("ERR_GONE");
-	if (listing.seller !== character.id) return fail("ERR_NOT_YOURS");
-	if (!listings.claim(listing.id)) return fail("ERR_BUSY");
-	try {
-		if (!isHeld(vehiclesApi.GetVehicle(listing.vehicleId))) return fail("ERR_GONE");
-		if (nearestVehicleAt(lot.delivery, 3)) return fail("ERR_BLOCKED");
-		if (!await listings.withdraw(listing)) return fail("ERR_FAILED");
-		vehiclesApi.SetOwner(listing.vehicleId, characterOwner(character.id));
-		let netId = await deliver(listing.vehicleId, lot, source, "garage");
-		return aiLog("listings", `took ${listing.plate} back from ${lot.id}`, {
-			source,
-			metadata: {
-				plate: listing.plate,
-				lot: lot.id
-			}
-		}), {
-			ok: !0,
-			delivered: netId !== null
-		};
-	} finally {
-		listings.release(listing.id);
-	}
-});
-// resource/server/dealer.ts
-const core = resourceExport("ai-core");
-function catalogPrice(model) {
-	let price = optionalExport("ai-vehicleshop")?.GetCatalogPrice(model);
-	return typeof price == "number" && Number.isFinite(price) && price > 0 ? price : null;
-}
-function dealerPrice(driven) {
-	let share = settings.value.dealerShare, catalog = share > 0 ? catalogPrice(driven.vehicle.model) : null, price = catalog === null ? 0 : dealerPriceOf(catalog, share);
-	return price <= 0 ? "ERR_NO_DEALER" : listings.ofVehicle(driven.vehicleId) ? "ERR_LISTED" : price;
-}
-const args = ([lotId, netId]) => {
-	let lot = readText(lotId, 48), net = readId(netId);
-	return lot === null || net === null ? null : [lot, net];
-};
-onClientCallback(EVENTS.quote, { args }, (source, lotId, netId) => {
-	let driven = drivenAtSellSpot(source, lotId, netId);
-	if (typeof driven == "string") return fail(driven);
-	let price = dealerPrice(driven);
-	return typeof price == "string" ? fail(price) : {
-		ok: !0,
-		price
-	};
-}), onClientCallback(EVENTS.sellBack, {
-	args,
-	lock: !0
-}, (source, lotId, netId) => sellLock.run(source, fail("ERR_PENDING"), async () => {
-	let driven = drivenAtSellSpot(source, lotId, netId);
-	if (typeof driven == "string") return fail(driven);
-	let price = dealerPrice(driven);
-	if (typeof price == "string") return fail(price);
-	let { vehicle, vehicleId, entity, lot } = driven, account = settings.value.payoutAccount;
-	return core.AddMoney(source, account, price, `vehiclesales:dealer:${vehicle.plate}`) ? (vehicleKeys.remove(source, vehicle.plate), vehiclesApi.DeleteVehicle(vehicleId), DoesEntityExist(entity) && DeleteEntity(entity), aiLog("sales", `sold ${vehicle.plate} to the dealer for $${price}`, {
-		source,
-		metadata: {
-			plate: vehicle.plate,
-			model: vehicle.model,
-			price,
-			account,
-			lot: lot.id
-		}
-	}), {
-		ok: !0,
-		price
-	}) : fail("ERR_FAILED");
-}));
-// resource/server/index.ts
-const log = createLogger(ResourceName);
-aiLogChannels({
-	listings: {},
-	sales: {}
-}), createDatabaseTables(ResourceName, "sql/main.sql").then(() => listings.load()).then(() => onCharacter({ loaded: (source, character) => payouts.claim(source, character.id) })).catch((error) => log.error("database setup failed", error)), panel.onChange("lots", (key) => {
-	key !== void 0 && listings.relayout(key);
-}), onClientCallback(EVENTS.testDrive, {
+}();
+onClientCallback(EVENTS.testDrive, {
 	args: ([lotId, id]) => {
 		let lot = readText(lotId, 48), listing = readId(id);
 		return lot === null || listing === null ? null : [lot, listing];

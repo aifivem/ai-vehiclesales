@@ -5,14 +5,10 @@ import {
   vehicleLabel,
 } from "@aicore-fivem/lib/client";
 import { num, record } from "@aicore-fivem/lib/shared";
-import {
-  EVENTS,
-  type ListingRow,
-  type Lot,
-  type NuiMessage,
-  type ScreenRow,
-} from "common/sales";
-import { settings } from "./content";
+import type { Lot } from "common/lots";
+import type { ListingRow, ScreenRow } from "common/rows";
+import { EVENTS, type NuiMessage } from "common/sales";
+import { settings } from "../content";
 import { Showroom } from "./showroom";
 
 export type ListingAction = "buy" | "testDrive" | "takeBack";

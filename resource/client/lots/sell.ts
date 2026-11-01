@@ -8,8 +8,10 @@ import {
 } from "@aicore-fivem/lib/client";
 import { groupDigits, num, readInt } from "@aicore-fivem/lib/shared";
 import { Locale } from "common";
-import { DESCRIPTION_MAX, EVENTS, payoutOf, type Lot } from "common/sales";
-import { settings } from "./content";
+import type { Lot } from "common/lots";
+import { payoutOf } from "common/prices";
+import { DESCRIPTION_MAX, EVENTS } from "common/sales";
+import { settings } from "../content";
 
 /** The sell spot: list the vehicle, or (dealer on, model in the shop's catalog) sell it to the dealer at once. */
 export async function atSellSpot(lot: Lot): Promise<void> {

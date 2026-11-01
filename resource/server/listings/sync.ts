@@ -1,12 +1,8 @@
 import { KeyWatchers, online } from "@aicore-fivem/lib/server";
-import {
-  EVENTS,
-  type DisplayRow,
-  type ListingRow,
-  type Look,
-} from "common/sales";
+import type { DisplayRow, ListingRow, Look } from "common/rows";
+import { EVENTS } from "common/sales";
 import type { Listing } from "./listing";
-import { lookOf, vehiclesApi } from "./vehicles";
+import { lookOf, vehiclesApi } from "../vehicles";
 
 const NO_LOOK: Look = { props: null, setup: null };
 /** Rows per snapshot event: parked rows carry the look (about 1 KB each), screen rows about 100 bytes. */

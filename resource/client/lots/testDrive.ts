@@ -1,5 +1,6 @@
 import { cache, player, triggerServerCallback } from "@aicore-fivem/lib/client";
-import { EVENTS, type Lot, type NuiMessage } from "common/sales";
+import type { Lot } from "common/lots";
+import { EVENTS, type NuiMessage } from "common/sales";
 
 /**
  * The running test drive on this client: the countdown chip on the page (client clock), and the end request when

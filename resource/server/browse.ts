@@ -1,17 +1,10 @@
-import {
-  isNear,
-  onClientCallback,
-  onClientEvent,
-} from "@aicore-fivem/lib/server";
+import { onClientCallback, onClientEvent } from "@aicore-fivem/lib/server";
 import { fail, readId, readText } from "@aicore-fivem/lib/shared";
-import { EVENTS, type Lot } from "common/sales";
+import { EVENTS } from "common/sales";
 import { lots } from "./content";
-import { listings } from "./listings";
+import { inLot } from "./lotArea";
+import { listings } from "./listings/listings";
 import { lookOf, vehiclesApi } from "./vehicles";
-
-/** The player stands inside the lot (plus `slack` metres). */
-export const inLot = (source: number, lot: Lot, slack = 0): boolean =>
-  isNear(source, lot, lot.area + slack);
 
 const lotArg = ([id]: unknown[]): [string] | null => {
   const lot = readText(id, 48);

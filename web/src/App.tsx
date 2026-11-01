@@ -1,20 +1,17 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { fetchNui, useNuiEvent } from "fivem-nui-react";
 import { useDebouncedValue } from "@tanstack/react-pacer";
-import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import {
-  faArrowPointer,
-  faCarSide,
-  faDoorOpen,
-} from "@fortawesome/free-solid-svg-icons";
-import type { NuiMessage, ScreenRow } from "../../resource/common/sales";
-import { VirtualList } from "./components/VirtualList";
+import type { ScreenRow } from "../../resource/common/rows";
+import type { NuiMessage } from "../../resource/common/sales";
 import { MOCK_DETAILS, MOCK_OPEN } from "./dev/mock";
-import { Detail, type Action } from "./features/Detail";
-import { ListingCard } from "./features/ListingCard";
-import { TimerChip } from "./features/TimerChip";
-import { Toolbar, type Filter, type Sort } from "./features/Toolbar";
-import { setTexts, useLang } from "./lib/lang";
+import { Detail, type Action } from "./features/lot/Detail";
+import { Header } from "./features/lot/Header";
+import { ListingStrip } from "./features/lot/ListingStrip";
+import { PickHint } from "./features/lot/PickHint";
+import { TimerChip } from "./features/lot/TimerChip";
+import { Toolbar, type Filter, type Sort } from "./features/lot/Toolbar";
+import { useListings } from "./features/lot/useListings";
+import { setTexts } from "./lib/lang";
 import {
   put,
   remove,
@@ -30,15 +27,8 @@ type Screen = Pick<OpenData, "lot" | "commission" | "testDriveSeconds">;
 const OK = { mockData: { ok: true } };
 const close = () => void fetchNui("close", undefined, OK);
 
-const SORTERS: Record<Sort, (a: ScreenRow, b: ScreenRow) => number> = {
-  newest: (a, b) => b.listed - a.listed,
-  cheap: (a, b) => a.price - b.price,
-  pricey: (a, b) => b.price - a.price,
-};
-
 /** The lot screen over the preview camera (tgiann-vehicleshop look): title and ESC; detail left; filters and the listing strip below. */
 export function App() {
-  const t = useLang();
   const dispatch = useAppDispatch();
   const rows = useAppSelector(selectAll);
   const offset = useAppSelector(selectOffset);
@@ -116,19 +106,7 @@ export function App() {
     return () => window.removeEventListener("keyup", onKey);
   }, [screen]);
 
-  const mine = useMemo(() => rows.filter((r) => r.mine), [rows]);
-  const list = useMemo(() => {
-    const needle = search.trim().toLowerCase();
-    const base = filter === "mine" ? mine : rows;
-    const found = needle
-      ? base.filter(
-          (r) =>
-            r.label.toLowerCase().includes(needle) ||
-            r.plate.toLowerCase().includes(needle),
-        )
-      : base;
-    return [...found].sort(SORTERS[sort]);
-  }, [rows, mine, filter, search, sort]);
+  const { mine, list } = useListings(rows, filter, search, sort);
 
   const timer = timerEnd > 0 && !screen && <TimerChip endsAt={timerEnd} />;
   if (!screen) return timer || null;
@@ -155,28 +133,7 @@ export function App() {
         className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle,rgba(0,0,0,0.15)_30%,rgba(0,0,0,0.85))]"
       />
       <div className="relative flex h-full flex-col justify-between p-[2vh]">
-        <div className="flex items-start justify-between gap-[4vh]">
-          <div className="flex min-w-0 flex-col gap-[0.6vh]">
-            <h1 className="font-display text-[4.4vh] leading-none font-extrabold tracking-[-0.01em] uppercase">
-              {t("UI_TITLE")}
-            </h1>
-            <p className="truncate text-[1.8vh] text-text-2">
-              {screen.lot.label}
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={close}
-            className="group flex shrink-0 items-center gap-[1vh]"
-          >
-            <span className="text-[1.4vh] font-extrabold text-text-2 transition-colors duration-150 group-hover:text-white">
-              {t("UI_ESC_CLOSE")}
-            </span>
-            <span className="flex size-[4.4vh] items-center justify-center rounded-full bg-black/60 text-[1.8vh] text-text-3 transition-colors duration-150 group-hover:bg-[#101010B3] group-hover:text-white">
-              <FontAwesomeIcon icon={faDoorOpen} />
-            </span>
-          </button>
-        </div>
+        <Header label={screen.lot.label} onClose={close} />
         <div className="flex min-h-0">
           {row ? (
             <Detail
@@ -190,21 +147,7 @@ export function App() {
               onAction={(a) => void act(a)}
             />
           ) : (
-            rows.length > 0 && (
-              <div className="flex w-[40vh] animate-rise items-center gap-[1.2vh] rounded-[1.4vh] border border-white/10 bg-black/50 p-[1.4vh]">
-                <span className="flex size-[3.6vh] shrink-0 items-center justify-center rounded-full bg-tgi-green-10 text-[1.5vh] text-tgi-green">
-                  <FontAwesomeIcon icon={faArrowPointer} />
-                </span>
-                <span className="flex min-w-0 flex-col gap-[0.3vh]">
-                  <span className="text-[1.5vh] leading-[1.3] font-semibold">
-                    {t("UI_PICK_TITLE")}
-                  </span>
-                  <span className="text-[1.3vh] leading-[1.4] text-text-3">
-                    {t("UI_PICK_HINT")}
-                  </span>
-                </span>
-              </div>
-            )
+            rows.length > 0 && <PickHint />
           )}
         </div>
         <div className="flex shrink-0 flex-col gap-[1.2vh]">
@@ -217,28 +160,11 @@ export function App() {
             onSort={setSort}
             onQuery={setQuery}
           />
-          <VirtualList
-            horizontal
-            className="h-[15vh] shrink-0 pb-[0.6vh]"
-            items={list}
-            estimateSize={36}
-            gap={1.2}
-            getItemKey={(r) => r.id}
-            empty={
-              <div className="flex h-full flex-col items-center justify-center gap-[1vh] rounded-[1.4vh] border border-white/10 bg-white/2 text-text-3">
-                <FontAwesomeIcon icon={faCarSide} className="text-[2.4vh]" />
-                <span className="text-[1.5vh]">{t(empty)}</span>
-              </div>
-            }
-            renderItem={(r) => (
-              <div className="h-full w-[36vh]">
-                <ListingCard
-                  row={r}
-                  active={r.id === selected}
-                  onClick={() => pick(r.id)}
-                />
-              </div>
-            )}
+          <ListingStrip
+            list={list}
+            selected={selected}
+            empty={empty}
+            onPick={pick}
           />
         </div>
       </div>

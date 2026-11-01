@@ -1,8 +1,8 @@
 import { mysql } from "@aicore-fivem/mysql";
 import { isRecord } from "@aicore-fivem/lib/shared";
-import type { Tables } from "./tables";
-import { lots } from "./content";
-import { db } from "./db";
+import type { Tables } from "../tables";
+import { lots } from "../content";
+import { db } from "../db";
 import { Listing } from "./listing";
 import { LotShelf } from "./shelf";
 import { LotSync } from "./sync";

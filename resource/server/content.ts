@@ -1,6 +1,7 @@
 import { AdminPanel } from "@aicore-fivem/lib/server";
 import { record } from "@aicore-fivem/lib/shared";
-import { readLot, readSettings } from "common/sales";
+import { readLot } from "common/lots";
+import { readSettings } from "common/settings";
 import { salesSchema } from "./schema";
 
 /** The panel and its parsed content. */

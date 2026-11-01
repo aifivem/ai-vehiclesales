@@ -12,10 +12,11 @@ import {
   toVehicleSetup,
   type ActionResult,
 } from "@aicore-fivem/lib/shared";
-import { EVENTS, type Lot } from "common/sales";
-import { settings } from "./content";
-import type { Listing } from "./listing";
-import { isHeld, vehiclesApi } from "./vehicles";
+import type { Lot } from "common/lots";
+import { EVENTS } from "common/sales";
+import { settings } from "../content";
+import type { Listing } from "../listings/listing";
+import { isHeld, vehiclesApi } from "../vehicles";
 
 interface Drive {
   entity: number;

@@ -6,10 +6,11 @@ import {
   faRotateLeft,
   faUser,
 } from "@fortawesome/free-solid-svg-icons";
-import { payoutOf, type ScreenRow } from "../../../resource/common/sales";
-import { Button } from "../components/ui/button";
-import { useLang } from "../lib/lang";
-import { ago, money } from "../lib/time";
+import { payoutOf } from "../../../../resource/common/prices";
+import type { ScreenRow } from "../../../../resource/common/rows";
+import { Button } from "../../components/ui/button";
+import { useLang } from "../../lib/lang";
+import { ago, money } from "../../lib/time";
 
 export type Action = "buy" | "testDrive" | "takeBack";
 

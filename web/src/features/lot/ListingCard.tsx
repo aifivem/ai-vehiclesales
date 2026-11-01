@@ -1,9 +1,9 @@
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faCarSide, faUser } from "@fortawesome/free-solid-svg-icons";
-import type { ScreenRow } from "../../../resource/common/sales";
-import { useLang } from "../lib/lang";
-import { money } from "../lib/time";
-import { cn } from "../lib/utils";
+import type { ScreenRow } from "../../../../resource/common/rows";
+import { useLang } from "../../lib/lang";
+import { money } from "../../lib/time";
+import { cn } from "../../lib/utils";
 
 /** One listing of the bottom strip (tgiann-vehicleshop card): glyph block, name, plate chip, seller, green price. */
 export function ListingCard({

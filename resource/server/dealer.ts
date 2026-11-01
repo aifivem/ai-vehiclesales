@@ -6,9 +6,10 @@ import {
   vehicleKeys,
 } from "@aicore-fivem/lib/server";
 import { fail, readId, readText } from "@aicore-fivem/lib/shared";
-import { dealerPriceOf, EVENTS } from "common/sales";
+import { dealerPriceOf } from "common/prices";
+import { EVENTS } from "common/sales";
 import { settings } from "./content";
-import { listings } from "./listings";
+import { listings } from "./listings/listings";
 import { drivenAtSellSpot, sellLock, type DrivenVehicle } from "./sellSpot";
 import { vehiclesApi } from "./vehicles";
 

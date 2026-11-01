@@ -20,7 +20,7 @@ Player used car lots (port of qb-vehiclesales / qbx_vehiclesales): drive an owne
 
 ## Contracts
 
-- Callbacks and events with payloads: `resource/common/sales.ts`.
+- Callbacks and events with payloads: `resource/common/sales.ts`; rows and their parsers `common/rows.ts`, panel readers `common/lots.ts` and `common/settings.ts`, price rules `common/prices.ts`.
 - Tables `ai_vehiclesales_listings` (one row per listed vehicle, unique `vehicle_id`) and `ai_vehiclesales_payouts` (`sql/main.sql`).
 - Panel files `data/settings.json`, `data/lots.json` (both `sync: "all"`).
 - ai-vehicles exports used: `GetVehicle`, `GetVehicleIdByEntity`, `SaveVehicle`, `StoreVehicle`, `SetOwner`, `SpawnVehicle`, `DeleteVehicle`. ai-vehicleshop: `GetCatalogPrice`.
@@ -32,6 +32,6 @@ Player used car lots (port of qb-vehiclesales / qbx_vehiclesales): drive an owne
 
 ## Entry points
 
-- Server: list, buy, take back `resource/server/actions.ts`; dealer buy-back `server/dealer.ts`; lot and screen snapshots `server/browse.ts`; memory and transactions `server/listings.ts` (spot assignment `server/shelf.ts`); deltas `server/sync.ts`; payouts `server/payouts.ts`; test drives `server/testDrive.ts`; panel `server/schema.ts`.
-- Client: lot points and zones `resource/client/index.ts`; parked cars `client/showcase.ts`; screen, camera and preview `client/browser.ts`, `client/showroom.ts`; selling and the dealer menu `client/sell.ts`.
-- NUI (tgiann-vehicleshop look over the preview camera, Redux store of the open lot): `web/src/App.tsx`; browser preview `bun run webdev` (`#detail` opens with a listing picked).
+- Server (`resource/server/index.ts` only imports): list, buy, take back `server/actions/` (callbacks `index.ts`, one file per action); dealer buy-back `server/dealer.ts`; lot and screen snapshots `server/browse.ts`; memory and transactions `server/listings/listings.ts` (spot assignment `listings/shelf.ts`, deltas `listings/sync.ts`, re-parking on a lot edit `listings/index.ts`); table setup and the listing load `server/setup.ts`; payouts `server/payouts.ts`; test drives `server/testDrive/`; who stands in a lot `server/lotArea.ts`; panel `server/schema/` (one file per tab, the larger settings cards in `settingsCards.ts`).
+- Client (`client/lots/`): lot points and zones `lots.ts`, events and NUI callbacks `index.ts`; parked cars `showcase.ts`; screen, camera and preview `browser.ts`, `showroom.ts`; selling and the dealer menu `sell.ts`; test drive `testDrive.ts`.
+- NUI (tgiann-vehicleshop look over the preview camera, Redux store of the open lot): state and transport `web/src/App.tsx`, the screen's parts in `web/src/features/lot/`; browser preview `bun run webdev` (`#detail` opens with a listing picked).

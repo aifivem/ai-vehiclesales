@@ -1,6 +1,7 @@
 import { PreviewVehicle, ScriptCamera } from "@aicore-fivem/lib/client";
-import type { Look, Lot } from "common/sales";
-import { applyLook } from "./content";
+import type { Lot } from "common/lots";
+import type { Look } from "common/rows";
+import { applyLook } from "../content";
 
 interface Shown {
   model: string;

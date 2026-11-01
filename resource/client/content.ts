@@ -4,7 +4,8 @@ import {
   setVehicleSetup,
 } from "@aicore-fivem/lib/client";
 import { toVehicleProps, toVehicleSetup } from "@aicore-fivem/lib/shared";
-import { readSettings, type Look } from "common/sales";
+import type { Look } from "common/rows";
+import { readSettings } from "common/settings";
 
 /** The panel's world files on this client. */
 export const world = new AdminWorld(["settings", "lots"]);

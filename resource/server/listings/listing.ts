@@ -1,4 +1,4 @@
-import type { Look } from "common/sales";
+import type { Look } from "common/rows";
 
 /** One listed vehicle in memory. Everything but the parking spot and the cached look is fixed while it is listed. */
 export class Listing {

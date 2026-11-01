@@ -7,8 +7,10 @@ import {
 } from "@aicore-fivem/lib/client";
 import { groupDigits } from "@aicore-fivem/lib/shared";
 import { Locale } from "common";
-import { EVENTS, type DisplayRow, type Lot } from "common/sales";
-import { applyLook, standStill } from "./content";
+import type { Lot } from "common/lots";
+import type { DisplayRow } from "common/rows";
+import { EVENTS } from "common/sales";
+import { applyLook, standStill } from "../content";
 
 interface Parked {
   row: DisplayRow;

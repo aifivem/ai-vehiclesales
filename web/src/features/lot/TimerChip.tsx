@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faGaugeHigh } from "@fortawesome/free-solid-svg-icons";
-import { useLang } from "../lib/lang";
+import { useLang } from "../../lib/lang";
 
 const clock = (ms: number): string => {
   const s = Math.max(0, Math.ceil(ms / 1000));

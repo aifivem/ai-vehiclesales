@@ -5,8 +5,8 @@ import {
   faMagnifyingGlass,
   faUser,
 } from "@fortawesome/free-solid-svg-icons";
-import { Tabs, TabsList, TabsTrigger } from "../components/ui/tabs";
-import { useLang } from "../lib/lang";
+import { Tabs, TabsList, TabsTrigger } from "../../components/ui/tabs";
+import { useLang } from "../../lib/lang";
 
 export type Filter = "all" | "mine";
 export type Sort = "newest" | "cheap" | "pricey";

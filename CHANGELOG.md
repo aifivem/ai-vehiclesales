@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.1.4](https://github.com/aifivem/ai-vehiclesales/compare/v0.1.3...v0.1.4) (2026-11-02)
+
+
+### Bug Fixes
+
+* **build:** keep the web build in dist/ so release zips have the NUI ([ab8b39c](https://github.com/aifivem/ai-vehiclesales/commit/ab8b39c07a52c2dadd1f54181c8090ab3ef2be42))
+
+
+### Code Refactoring
+
+* import the shared packages from [@aifivem](https://github.com/aifivem) ([8b2aa8d](https://github.com/aifivem/ai-vehiclesales/commit/8b2aa8d757f4602216a04326ffdfa04244e38fae))
+
 ## [0.1.3](https://github.com/aifivem/ai-vehiclesales/compare/v0.1.2...v0.1.3) (2026-11-01)
 
 

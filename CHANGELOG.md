@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.1.5](https://github.com/aifivem/ai-vehiclesales/compare/v0.1.4...v0.1.5) (2026-11-02)
+
+
+### Documentation
+
+* install from the release zip ([da77175](https://github.com/aifivem/ai-vehiclesales/commit/da7717572bcf81787a865e219b4243afe2188c86))
+
+
+### Miscellaneous Chores
+
+* build files are no longer in git, the release zip carries them ([e9ecc6c](https://github.com/aifivem/ai-vehiclesales/commit/e9ecc6cb8f7a5d94a8f5d98b630577a98594ba81))
+
 ## [0.1.4](https://github.com/aifivem/ai-vehiclesales/compare/v0.1.3...v0.1.4) (2026-11-02)
 
 

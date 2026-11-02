@@ -2,8 +2,8 @@ import {
   AdminWorld,
   setVehicleProps,
   setVehicleSetup,
-} from "@aicore-fivem/lib/client";
-import { toVehicleProps, toVehicleSetup } from "@aicore-fivem/lib/shared";
+} from "@aifivem/lib/client";
+import { toVehicleProps, toVehicleSetup } from "@aifivem/lib/shared";
 import type { Look } from "common/rows";
 import { readSettings } from "common/settings";
 

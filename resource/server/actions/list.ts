@@ -1,5 +1,5 @@
-import { aiLog, fuel, online, vehicleKeys } from "@aicore-fivem/lib/server";
-import { fail } from "@aicore-fivem/lib/shared";
+import { aiLog, fuel, online, vehicleKeys } from "@aifivem/lib/server";
+import { fail } from "@aifivem/lib/shared";
 import { settings } from "../content";
 import { listings } from "../listings/listings";
 import { drivenAtSellSpot, sellLock } from "../sellSpot";

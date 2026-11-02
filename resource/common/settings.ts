@@ -5,7 +5,7 @@ import {
   readBlipStyle,
   record,
   str,
-} from "@aicore-fivem/lib/shared";
+} from "@aifivem/lib/shared";
 
 /** A job's or gang's shared account that receives the lot's cut. */
 export interface CommissionTarget {

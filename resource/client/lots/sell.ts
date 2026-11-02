@@ -5,8 +5,8 @@ import {
   menu,
   notify,
   vehicleLabel,
-} from "@aicore-fivem/lib/client";
-import { groupDigits, num, readInt } from "@aicore-fivem/lib/shared";
+} from "@aifivem/lib/client";
+import { groupDigits, num, readInt } from "@aifivem/lib/shared";
 import { Locale } from "common";
 import type { Lot } from "common/lots";
 import { payoutOf } from "common/prices";

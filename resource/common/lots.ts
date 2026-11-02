@@ -7,7 +7,7 @@ import {
   str,
   vec4,
   type Vec4,
-} from "@aicore-fivem/lib/shared";
+} from "@aifivem/lib/shared";
 
 export interface Lot {
   /** NPC standing at the counter (panel), null for none. */

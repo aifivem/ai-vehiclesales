@@ -1,10 +1,10 @@
-import { onClientCallback } from "@aicore-fivem/lib/server";
+import { onClientCallback } from "@aifivem/lib/server";
 import {
   readId,
   readInt,
   readText,
   stripGameText,
-} from "@aicore-fivem/lib/shared";
+} from "@aifivem/lib/shared";
 import { DESCRIPTION_MAX, EVENTS } from "common/sales";
 import { buy } from "./buy";
 import { listVehicle } from "./list";

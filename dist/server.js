@@ -665,7 +665,7 @@ function toPatch(value) {
 		default: return null;
 	}
 }
-const clone = (value) => value === void 0 ? value : JSON.parse(JSON.stringify(value)), core$29 = resourceExport(CORE.resource), ERR = {
+const clone = (value) => value === void 0 ? value : JSON.parse(JSON.stringify(value)), core$30 = resourceExport(CORE.resource), ERR = {
 	type: "ADMIN_ERR_TYPE",
 	range: "ADMIN_ERR_RANGE",
 	length: "ADMIN_ERR_LENGTH",
@@ -679,7 +679,7 @@ const clone = (value) => value === void 0 ? value : JSON.parse(JSON.stringify(va
 		if (cached && Date.now() - cached.at < 2e3) return cached.values.size > 0 ? cached.values : null;
 		let list = [];
 		try {
-			list = core$29.GetLookupValues(source);
+			list = core$30.GetLookupValues(source);
 		} catch {}
 		let values = new Set(Array.isArray(list) ? list.filter((v) => typeof v == "string") : []);
 		return this.lists.set(source, {
@@ -945,7 +945,7 @@ function writeSchema(resource, name, text, log) {
 	(0, node_fs_promises.mkdir)(dir, { recursive: !0 }).then(() => (0, node_fs_promises.writeFile)(`${dir}/${name}.schema.json`, text, "utf8")).catch((error) => log.error(`writing ${resource}/${path} failed`, error));
 }
 // ../../../packages/lib/src/server/admin/panelFiles.ts
-const core$28 = resourceExport(CORE.resource);
+const core$29 = resourceExport(CORE.resource);
 var PanelFiles = class {
 	schema;
 	data = new Map();
@@ -989,7 +989,7 @@ var PanelFiles = class {
 		let spec = this.schema.files[file], data = this.get(file), value = key === void 0 ? data : data[key] ?? null;
 		this.dataFiles.get(file)?.write(data), this.views.changed(file, key, value);
 		for (let handler of this.handlers.get(file) ?? []) handler(key, value);
-		if (core$28.AdminPanelChanged({
+		if (core$29.AdminPanelChanged({
 			resource: this.resource,
 			file,
 			key,
@@ -1011,7 +1011,7 @@ var PanelFiles = class {
 	}
 };
 // ../../../packages/lib/src/server/admin/panel.ts
-const core$27 = resourceExport(CORE.resource);
+const core$28 = resourceExport(CORE.resource);
 var AdminPanel = class extends PanelFiles {
 	rules = new Map();
 	actions = new Map();
@@ -1020,7 +1020,7 @@ var AdminPanel = class extends PanelFiles {
 		super(schema), registerExport("AdminPanelSnapshot", () => this.snapshot()), registerExport("AdminPanelData", () => this.dataSnapshot()), registerExport("AdminPanelSummary", () => this.summary()), registerExport("AdminPanelApply", (admin, patch) => this.apply(admin, patch)), onClientCallback(ADMIN.worldChangesCallback(this.resource), () => Object.fromEntries(this.worldChanges), { rate: {
 			count: 4,
 			windowMs: 1e4
-		} }), setImmediate(() => core$27.RegisterAdminPanel(this.resource));
+		} }), setImmediate(() => core$28.RegisterAdminPanel(this.resource));
 	}
 	rule(file, rule) {
 		this.rules.set(file, rule);
@@ -1133,7 +1133,7 @@ function notify(source, text, kind = "info", duration, title) {
 }
 resourceExport(CORE.resource);
 // ../../../packages/lib/src/server/online/mirror.ts
-const core$25 = resourceExport(CORE.resource);
+const core$26 = resourceExport(CORE.resource);
 function reindex(index, source, before, after) {
 	for (let name of before) {
 		let set = index.get(name);
@@ -1149,7 +1149,10 @@ var OnlineMirror = class {
 	onDuty = new Map();
 	jobIndex = new Map();
 	gangIndex = new Map();
+	byCitizenid = new Map();
+	jobListeners = new Set();
 	started = !1;
+	loading = !1;
 	start() {
 		if (this.started) return;
 		this.started = !0;
@@ -1161,23 +1164,44 @@ var OnlineMirror = class {
 				gangs: [],
 				gangNames: [],
 				duty: null
-			}), this.setJobs(source, core$25.GetJobs(source) ?? []), this.setGangs(source, core$25.GetGangs(source) ?? []), this.setDuty(source, core$25.GetDutyJob(source));
+			}), this.byCitizenid.set(character.citizenid, source), this.loading = !0, this.setJobs(source, core$26.GetJobs(source) ?? []), this.setGangs(source, core$26.GetGangs(source) ?? []), this.setDuty(source, core$26.GetDutyJob(source)), this.loading = !1;
+			let player = this.players.get(source);
+			player && this.emitJobs(source, player, [], null, !0);
 		};
 		on(CORE.playerLoadedEvent, load), on(CORE.playerUnloadedEvent, (source) => this.drop(source)), on(CORE.jobsChangedEvent, (source, jobs) => this.setJobs(source, jobs)), on(CORE.gangsChangedEvent, (source, gangs) => this.setGangs(source, gangs)), on(CORE.dutyChangedEvent, (source, job) => this.setDuty(source, job));
-		for (let source of core$25.GetLoadedSources()) {
-			let character = core$25.GetCharacter(source);
+		for (let source of core$26.GetLoadedSources()) {
+			let character = core$26.GetCharacter(source);
 			character && load(source, character);
 		}
 	}
+	emitJobs(source, player, jobs, duty, online) {
+		if (this.jobListeners.size === 0) return;
+		let change = {
+			source,
+			citizenid: player.character.citizenid,
+			jobs: online ? player.jobs : [],
+			duty: online ? player.duty : null,
+			online,
+			previous: {
+				jobs,
+				duty
+			}
+		};
+		for (let listener of this.jobListeners) listener(change);
+	}
 	drop(source) {
 		let player = this.players.get(source);
-		player && (this.setDuty(source, null), reindex(this.jobIndex, source, player.jobNames, []), reindex(this.gangIndex, source, player.gangNames, []), this.players.delete(source));
+		if (!player) return;
+		let [jobs, duty] = [player.jobs, player.duty];
+		this.loading = !0, this.setDuty(source, null), this.loading = !1, this.emitJobs(source, player, jobs, duty, !1), reindex(this.jobIndex, source, player.jobNames, []), reindex(this.gangIndex, source, player.gangNames, []), this.byCitizenid.delete(player.character.citizenid), this.players.delete(source);
 	}
 	setJobs(source, jobs) {
 		let player = this.players.get(source);
 		if (!player) return;
 		let names = jobs.map((m) => m.job);
-		reindex(this.jobIndex, source, player.jobNames, names), player.jobs = jobs, player.jobNames = names;
+		reindex(this.jobIndex, source, player.jobNames, names);
+		let before = player.jobs;
+		player.jobs = jobs, player.jobNames = names, this.loading || this.emitJobs(source, player, before, player.duty, !0);
 	}
 	setGangs(source, gangs) {
 		let player = this.players.get(source);
@@ -1187,14 +1211,17 @@ var OnlineMirror = class {
 	}
 	setDuty(source, job) {
 		let player = this.players.get(source);
-		if (!player) return;
+		if (!player || player.duty === job) return;
+		let before = player.duty;
 		if (player.duty) {
 			let set = this.onDuty.get(player.duty);
 			set?.delete(source), set?.size === 0 && this.onDuty.delete(player.duty);
 		}
-		if (player.duty = job, !job) return;
-		let set = this.onDuty.get(job);
-		set || this.onDuty.set(job, set = new Set()), set.add(source);
+		if (player.duty = job, job) {
+			let set = this.onDuty.get(job);
+			set || this.onDuty.set(job, set = new Set()), set.add(source);
+		}
+		this.loading || this.emitJobs(source, player, player.jobs, before, !0);
 	}
 }, OnlinePlayers = class extends OnlineMirror {
 	sources() {
@@ -1205,6 +1232,15 @@ var OnlineMirror = class {
 	}
 	character(source) {
 		return this.start(), this.players.get(source)?.character ?? null;
+	}
+	sourceOf(citizenid) {
+		return this.start(), this.byCitizenid.get(citizenid) ?? null;
+	}
+	characters() {
+		this.start();
+		let out = new Map();
+		for (let [source, player] of this.players) out.set(source, player.character);
+		return out;
 	}
 	charId(source) {
 		return this.start(), this.players.get(source)?.character.id;
@@ -1258,14 +1294,40 @@ var OnlineMirror = class {
 		for (let job of jobs) count += this.onDuty.get(job)?.size ?? 0;
 		return count;
 	}
+	countMembers(jobs, onlyOnDuty = !1) {
+		if (onlyOnDuty) return this.countOnDuty(jobs);
+		this.start();
+		let count = 0;
+		for (let i = 0; i < jobs.length; i++) {
+			let set = this.jobIndex.get(jobs[i]);
+			if (set && (count += set.size, i !== 0)) {
+				for (let source of set) for (let k = 0; k < i; k++) if (this.jobIndex.get(jobs[k])?.has(source)) {
+					count--;
+					break;
+				}
+			}
+		}
+		return count;
+	}
+	membersOf(jobs, onlyOnDuty = !1) {
+		this.start();
+		let index = onlyOnDuty ? this.onDuty : this.jobIndex;
+		if (jobs.length === 1) return [...index.get(jobs[0]) ?? EMPTY];
+		let seen = new Set();
+		for (let job of jobs) for (let source of index.get(job) ?? EMPTY) seen.add(source);
+		return [...seen];
+	}
+	onJobState(listener) {
+		return this.start(), this.jobListeners.add(listener), () => this.jobListeners.delete(listener);
+	}
 	onDutyFor(job) {
 		return this.start(), this.onDuty.get(job) ?? EMPTY;
 	}
 };
-const EMPTY = new Set(), online = new OnlinePlayers(), core$24 = resourceExport(CORE.resource), vehicleKeys = {
-	give: (source, vehicle, purpose = "temporary") => core$24.GiveVehicleKeys(source, vehicle, purpose),
-	remove: (source, vehicle) => core$24.RemoveVehicleKeys(source, vehicle),
-	has: (source, vehicle) => core$24.HasVehicleKeys(source, vehicle)
+const EMPTY = new Set(), online = new OnlinePlayers(), core$25 = resourceExport(CORE.resource), vehicleKeys = {
+	give: (source, vehicle, purpose = "temporary") => core$25.GiveVehicleKeys(source, vehicle, purpose),
+	remove: (source, vehicle) => core$25.RemoveVehicleKeys(source, vehicle),
+	has: (source, vehicle) => core$25.HasVehicleKeys(source, vehicle)
 }, TYPES = new Set([
 	"automobile",
 	"bike",
@@ -1285,10 +1347,10 @@ async function vehicleType(model, asker) {
 	return first !== void 0 && first !== asker ? (types.set(hash, answer), votes.delete(hash)) : (seen.set(answer, asker), votes.set(hash, seen)), answer;
 }
 // ../../../packages/lib/src/server/fuel.ts
-const core$23 = resourceExport(CORE.resource), fuel = {
-	get: (vehicle) => core$23.GetVehicleFuel(vehicle),
-	set: (vehicle, level) => core$23.SetVehicleFuel(vehicle, level),
-	provider: () => core$23.GetFuelSystem()
+const core$24 = resourceExport(CORE.resource), fuel = {
+	get: (vehicle) => core$24.GetVehicleFuel(vehicle),
+	set: (vehicle, level) => core$24.SetVehicleFuel(vehicle, level),
+	provider: () => core$24.GetFuelSystem()
 };
 function randomPlate(prefix) {
 	let digit = () => String(Math.floor(Math.random() * 10));
@@ -1459,7 +1521,7 @@ on(CORE.playerUnloadedEvent, (source) => {
 	settle && settle(!1);
 });
 // ../../../packages/lib/src/server/definitions.ts
-const core$21 = resourceExport("ai-core");
+const core$22 = resourceExport("ai-core");
 new class {
 	jobs = new Map();
 	gangs = new Map();
@@ -1470,23 +1532,23 @@ new class {
 	}
 	job(name) {
 		let def = this.jobs.get(name);
-		return def === void 0 && this.jobs.set(name, def = core$21.GetJobDefinition(name) ?? null), def;
+		return def === void 0 && this.jobs.set(name, def = core$22.GetJobDefinition(name) ?? null), def;
 	}
 	registerJob(name, definition) {
-		return core$21.RegisterJobDefinition(name, definition);
+		return core$22.RegisterJobDefinition(name, definition);
 	}
 	removeJob(name) {
-		return core$21.RemoveJobDefinition(name);
+		return core$22.RemoveJobDefinition(name);
 	}
 	registerGang(name, definition) {
-		return core$21.RegisterGangDefinition(name, definition);
+		return core$22.RegisterGangDefinition(name, definition);
 	}
 	removeGang(name) {
-		return core$21.RemoveGangDefinition(name);
+		return core$22.RemoveGangDefinition(name);
 	}
 	gang(name) {
 		let def = this.gangs.get(name);
-		return def === void 0 && this.gangs.set(name, def = core$21.GetGangDefinition(name) ?? null), def;
+		return def === void 0 && this.gangs.set(name, def = core$22.GetGangDefinition(name) ?? null), def;
 	}
 }(), createLogger(GetCurrentResourceName());
 // ../../../packages/lib/src/server/command/commandSet.ts
@@ -15968,15 +16030,15 @@ new class {
 	};
 }(), IsDuplicityVersion(), IsDuplicityVersion(), resourceExport(CORE.resource), resourceExport(CORE.resource);
 // ../../../packages/lib/src/server/phone.ts
-const core$18 = resourceExport(CORE.resource), phone = {
-	number: (source) => core$18.GetPhoneNumber(source),
-	sourceOf: (number) => core$18.GetSourceByPhone(number),
-	hasPhone: (source) => core$18.HasPhone(source),
-	mail: (to, mail) => core$18.SendPhoneMail(to, mail),
-	message: (from, to, text) => core$18.SendPhoneMessage(from, to, text),
-	notify: (source, notification) => core$18.PhoneNotify(source, notification)
+const core$19 = resourceExport(CORE.resource), phone = {
+	number: (source) => core$19.GetPhoneNumber(source),
+	sourceOf: (number) => core$19.GetSourceByPhone(number),
+	hasPhone: (source) => core$19.HasPhone(source),
+	mail: (to, mail) => core$19.SendPhoneMail(to, mail),
+	message: (from, to, text) => core$19.SendPhoneMessage(from, to, text),
+	notify: (source, notification) => core$19.PhoneNotify(source, notification)
 };
-resourceExport(CORE.resource), resourceExport(CORE.resource), resourceExport(CORE.resource), resourceExport(CORE.resource), resourceExport(CORE.resource), resourceExport(CORE.resource), resourceExport(CORE.resource), resourceExport(CORE.resource), resourceExport(CORE.resource), resourceExport(CORE.resource), resourceExport(CORE.resource), resourceExport(CORE.resource), resourceExport(CORE.resource), resourceExport(CORE.resource), resourceExport(CORE.resource);
+resourceExport(CORE.resource), resourceExport(CORE.resource), resourceExport(CORE.resource), resourceExport(CORE.resource), resourceExport(CORE.resource), resourceExport(CORE.resource), resourceExport(CORE.resource), resourceExport(CORE.resource), resourceExport(CORE.resource), resourceExport(CORE.resource), resourceExport(CORE.resource), resourceExport(CORE.resource), resourceExport(CORE.resource), resourceExport(CORE.resource), resourceExport(CORE.resource), resourceExport(CORE.resource);
 // resource/common/sales.ts
 const EVENTS = {
 	watch: "ai-vehiclesales:watch",

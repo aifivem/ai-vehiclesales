@@ -3,8 +3,8 @@ import {
   loadLocaleTexts,
   NuiScreen,
   vehicleLabel,
-} from "@aicore-fivem/lib/client";
-import { num, record } from "@aicore-fivem/lib/shared";
+} from "@aifivem/lib/client";
+import { num, record } from "@aifivem/lib/shared";
 import type { Lot } from "common/lots";
 import type { ListingRow, ScreenRow } from "common/rows";
 import { EVENTS, type NuiMessage } from "common/sales";

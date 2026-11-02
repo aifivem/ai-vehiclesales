@@ -1,5 +1,5 @@
-import { aiLog, nearestVehicleAt, online } from "@aicore-fivem/lib/server";
-import { fail } from "@aicore-fivem/lib/shared";
+import { aiLog, nearestVehicleAt, online } from "@aifivem/lib/server";
+import { fail } from "@aifivem/lib/shared";
 import { lots } from "../content";
 import { listings } from "../listings/listings";
 import { inLot } from "../lotArea";

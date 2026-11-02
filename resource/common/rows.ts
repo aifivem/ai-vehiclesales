@@ -1,4 +1,4 @@
-import { num, record } from "@aicore-fivem/lib/shared";
+import { num, record } from "@aifivem/lib/shared";
 
 /** One listing of the browse screen; `mine` is worked out per viewer. */
 export interface ListingRow {

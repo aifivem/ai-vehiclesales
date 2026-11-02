@@ -1,5 +1,5 @@
 import { translate } from "./lang";
-import { groupDigits } from "@aicore-fivem/lib/shared";
+import { groupDigits } from "@aifivem/lib/shared";
 
 /** "3 h ago" from a server epoch ms and the server-minus-page clock offset. */
 export function ago(listed: number, offset: number): string {

@@ -4,8 +4,8 @@ import {
   Points,
   requestModel,
   vehicleLabel,
-} from "@aicore-fivem/lib/client";
-import { groupDigits } from "@aicore-fivem/lib/shared";
+} from "@aifivem/lib/client";
+import { groupDigits } from "@aifivem/lib/shared";
 import { Locale } from "common";
 import type { Lot } from "common/lots";
 import type { DisplayRow } from "common/rows";

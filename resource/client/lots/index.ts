@@ -1,5 +1,5 @@
-import { onCache, onServerEvent, onStop } from "@aicore-fivem/lib/client";
-import { isRecord, readId } from "@aicore-fivem/lib/shared";
+import { onCache, onServerEvent, onStop } from "@aifivem/lib/client";
+import { isRecord, readId } from "@aifivem/lib/shared";
 import { idsOf, rowsOf, toDisplayRow, toListingRow } from "common/rows";
 import { EVENTS } from "common/sales";
 import { world } from "../content";

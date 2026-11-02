@@ -1,4 +1,4 @@
-import { PreviewVehicle, ScriptCamera } from "@aicore-fivem/lib/client";
+import { PreviewVehicle, ScriptCamera } from "@aifivem/lib/client";
 import type { Lot } from "common/lots";
 import type { Look } from "common/rows";
 import { applyLook } from "../content";

@@ -1,4 +1,4 @@
-import { cache, player, triggerServerCallback } from "@aicore-fivem/lib/client";
+import { cache, player, triggerServerCallback } from "@aifivem/lib/client";
 import type { Lot } from "common/lots";
 import { EVENTS, type NuiMessage } from "common/sales";
 

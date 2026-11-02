@@ -1,9 +1,9 @@
-import { resourceExport } from "@aicore-fivem/lib/server";
+import { resourceExport } from "@aifivem/lib/server";
 import type {
   KeyPurpose,
   OwnedVehicle,
   VehicleOwner,
-} from "@aicore-fivem/shared";
+} from "@aifivem/shared";
 import type { Lot } from "common/lots";
 import type { Look } from "common/rows";
 

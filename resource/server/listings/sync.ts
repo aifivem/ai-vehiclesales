@@ -1,4 +1,4 @@
-import { KeyWatchers, online } from "@aicore-fivem/lib/server";
+import { KeyWatchers, online } from "@aifivem/lib/server";
 import type { DisplayRow, ListingRow, Look } from "common/rows";
 import { EVENTS } from "common/sales";
 import type { Listing } from "./listing";

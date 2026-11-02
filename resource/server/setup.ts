@@ -1,5 +1,5 @@
-import { createDatabaseTables, onCharacter } from "@aicore-fivem/lib/server";
-import { createLogger } from "@aicore-fivem/lib/shared";
+import { createDatabaseTables, onCharacter } from "@aifivem/lib/server";
+import { createLogger } from "@aifivem/lib/shared";
 import { ResourceName } from "common";
 import { listings } from "./listings/listings";
 import { payouts } from "./payouts";
